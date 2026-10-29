@@ -79,7 +79,7 @@ describe("parsing & merge", () => {
     expect(detectFormat({ foo: 1 })).toBeNull();
   });
   it("drops sensitive Rubika file fields", () => {
-    const p = parseRubika({ chat_guid: "g2", messages: [{ message_id: "1", time: "100", type: "FileInline", author_object_guid: "g1", file_inline: { type: "Image", file_name: "a.jpg", access_hash_rec: "SECRET", file_id: "9" } }] }, "f");
+    const p = parseRubika({ chat_guid: "u2", messages: [{ message_id: "1", time: "100", type: "FileInline", author_object_guid: "g1", file_inline: { type: "Image", file_name: "a.jpg", access_hash_rec: "SECRET", file_id: "9" } }] }, "f");
     expect(JSON.stringify(p.messages)).not.toContain("SECRET");
     expect(p.messages[0]!.kd).toBe("image");
     expect(p.source.senders.find((s) => s.key === "R:g1")?.guess).toBe("M");
