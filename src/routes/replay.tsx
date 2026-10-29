@@ -101,7 +101,7 @@ function Replay() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl pt-4 pb-40">
+    <main className="mx-auto max-w-3xl pt-4 pb-72">
       <header className="sticky top-0 z-20 mx-3 mb-3 glass rounded-2xl px-4 py-2">
         <div className="flex items-center justify-between gap-2">
           <h1 className="font-display text-xl">{title ?? "خاطره"}</h1>
