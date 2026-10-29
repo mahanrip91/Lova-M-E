@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FastForward, Pause, Play, Rewind, SkipBack, SkipForward, Moon, Info } from "lucide-react";
 import { useStore, getState } from "@/lib/mae/store";
 import { sliceRange, splitAtMidnight } from "@/lib/mae/analysis";
-import { dayKey, fa, fmtDate, fmtDateTime, fmtDuration, fmtTime, dayStartMs, DAY_MS } from "@/lib/mae/time";
+import { dayKey, fa, fmtDate, fmtDateTime, fmtDuration, fmtTime } from "@/lib/mae/time";
 import { Bubble, DayDivider } from "@/components/mae/Bubble";
 
 interface Search { from: number; to: number; title?: string; kind?: string }
@@ -179,9 +179,4 @@ function Replay() {
       </div>
     </main>
   );
-}
-
-export function dayRange(day: string) {
-  const s = dayStartMs(day);
-  return { from: s, to: s + DAY_MS - 1 };
 }
