@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FastForward, Pause, Play, Rewind, SkipBack, SkipForward, Moon, Info } from "lucide-react";
 import { useStore, getState } from "@/lib/mae/store";
 import { sliceRange, splitAtMidnight } from "@/lib/mae/analysis";
-import { dayKey, fa, fmtDate, fmtDateTime, fmtDuration, fmtTime } from "@/lib/mae/time";
+import { dayKey, dayStartMs, fa, fmtDate, fmtDateTime, fmtDuration, fmtTime } from "@/lib/mae/time";
 import { Bubble, DayDivider } from "@/components/mae/Bubble";
 
 interface Search { from: number; to: number; title?: string | undefined; kind?: string | undefined; src?: string | undefined }
@@ -36,7 +36,6 @@ function Replay() {
   const all = useStore((s) => s.messages);
   const sources = useStore((s) => s.sources);
   const sides = useStore((s) => s.sides);
-  const startMs = useStore((s) => s.settings.startMs);
   const msgs = useMemo(() => { const r = sliceRange(all, from, to); return src ? r.filter((m) => m.s === src) : r; }, [all, from, to, src]);
   const segments = useMemo(() => splitAtMidnight(from, to, msgs), [from, to, msgs]);
   const [phase, setPhase] = useState<"intro" | "play">("intro");
@@ -70,7 +69,8 @@ function Replay() {
   const firstSide = first ? sides[first.k]?.side : undefined;
   const srcSet = [...new Set(msgs.map((m) => srcLabel[m.s]))];
   const multiDay = segments.length > 1;
-  const preMidnightEmpty = kind === "first" && msgs.every((m) => m.t >= startMs);
+  const midnight = dayStartMs(dayKey(to));
+  const preMidnightEmpty = kind === "first" && msgs.every((m) => m.t >= midnight);
   const missingSource = !!src && !sources.some((x) => x.id === src);
 
   const windowStart = Math.max(0, idx - 120);

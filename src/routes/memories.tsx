@@ -37,7 +37,8 @@ function Memories() {
   const sources = useStore((s) => s.sources);
   const settings = useStore((s) => s.settings);
   const cands = useMemo(() => (status === "ready" ? birthdayCandidates(messages, (k) => sides[k]?.side, days) : []), [status, messages, sides, days]);
-  const firstMsgs = useMemo(() => sliceRange(messages, settings.firstFrom, settings.firstTo), [messages, settings.firstFrom, settings.firstTo]);
+  const firstSrc = sources.find((x) => x.id === settings.firstSourceId) ?? null;
+  const firstMsgs = useMemo(() => (firstSrc ? sliceRange(messages, settings.firstFrom, settings.firstTo).filter((m) => m.s === firstSrc.id) : []), [messages, settings.firstFrom, settings.firstTo, firstSrc]);
   const [custom, setCustom] = useState({ title: "", from: settings.startMs, to: settings.startMs + 3 * 3600000 });
 
   return (
@@ -52,20 +53,32 @@ function Memories() {
 
       <section className="glass mt-4 rounded-3xl p-4">
         <h2 className="font-bold">بازه‌ی «روز اول ما»</h2>
-        <p className="mt-1 text-xs text-muted-foreground">یک گفتگوی پیوسته که از نیمه‌شب می‌گذرد. فقط پیام‌های واقعی داخل این بازه پخش می‌شوند.</p>
+        <p className="mt-1 text-xs text-muted-foreground">یک گفتگوی پیوسته در گروه که از نیمه‌شب می‌گذرد. بازه و منبع هر دو قابل ویرایش‌اند. فقط پیام‌های واقعی داخل این بازه پخش می‌شوند.</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <JalaliDateTimeInput label="از" value={settings.firstFrom} onChange={(ms) => updateSettings({ firstFrom: ms })} />
           <JalaliDateTimeInput label="تا" value={settings.firstTo} onChange={(ms) => updateSettings({ firstTo: ms })} />
         </div>
-        <div className="mt-3 space-y-1 text-xs">
-          <p>{fa(firstMsgs.length)} پیام بایگانی‌شده در این بازه{firstMsgs[0] ? ` · نخستین: ${fmtDateTime(firstMsgs[0].t)}` : ""}</p>
-          {sources.map((s) => {
-            const n = firstMsgs.filter((m) => m.s === s.id).length;
-            return <p key={s.id} className="text-muted-foreground">{s.label}: {n ? `${fa(n)} پیام` : s.from > settings.firstTo ? "این منبع بعداً شروع می‌شود" : "پیامی در این بازه ندارد"}</p>;
-          })}
-          {status === "ready" && messages[0] && messages[0].t > settings.firstFrom && (
-            <p className="text-gold">قدیمی‌ترین پیام کل آرشیو {fmtDateTime(messages[0].t)} است؛ هر چه قبل از آن بوده، در خروجی‌ها نیامده.</p>
+        <div className="mt-3">
+          <label className="text-xs text-muted-foreground" htmlFor="first-src">منبع شب اول (گفتگوی گروهی)</label>
+          <select id="first-src" value={settings.firstSourceId ?? ""} onChange={(e) => updateSettings({ firstSourceId: e.target.value || null })} className="mt-1 w-full rounded-xl border border-input bg-background/60 px-3 py-2 text-sm">
+            <option value="">— هنوز انتخاب نشده —</option>
+            {sources.map((s) => <option key={s.id} value={s.id}>{s.label}{s.isGroup ? " (گروه)" : " (خصوصی)"}</option>)}
+          </select>
+          {!sources.some((s) => s.isGroup) && (
+            <p className="mt-2 text-xs text-gold">هنوز هیچ آرشیو گروهی وارد نشده. <Link to="/import" className="text-primary underline">وارد کردن آرشیو گروه</Link></p>
           )}
+        </div>
+        <div className="mt-3 space-y-1 text-xs">
+          {!firstSrc ? (
+            <p className="text-muted-foreground">تا منبع انتخاب نشود، «روز اول ما» پیامی پخش نمی‌کند.</p>
+          ) : (
+            <>
+              <p>{fa(firstMsgs.length)} پیامِ واقعی از «{firstSrc.label}» در این بازه{firstMsgs[0] ? ` · نخستین: ${fmtDateTime(firstMsgs[0].t)}` : ""}</p>
+              <p className="text-muted-foreground">پوشش این آرشیو: {fmtDateTime(firstSrc.from)} تا {fmtDateTime(firstSrc.to)}</p>
+              {firstSrc.from > settings.firstFrom && <p className="text-gold">این آرشیو از {fmtDateTime(firstSrc.from)} شروع می‌شود؛ قبل از آن پیامی در آن نیست و چیزی ساخته نمی‌شود.</p>}
+            </>
+          )}
+          <p className="text-muted-foreground">تاریخ شروع رابطه (شمارنده) جداست و فقط توسط تو تأیید می‌شود: {fmtDateTime(settings.startMs)}</p>
         </div>
       </section>
 

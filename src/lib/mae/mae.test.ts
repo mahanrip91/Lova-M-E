@@ -113,3 +113,35 @@ describe("memories", () => {
     expect(pickRandomSession([])).toBeNull();
   });
 });
+
+describe("group archives", () => {
+  it("parses Telegram Desktop group export using true UTC unix time, skipping service messages", async () => {
+    const { parseTelegramDesktop, detectFormat: df } = await import("./parse");
+    const json = { name: "G", type: "private_supergroup", id: 42, messages: [
+      { id: 1, type: "service", date_unixtime: "1776200000" },
+      { id: 2, type: "message", date: "2026-04-14T23:50:00", date_unixtime: String(tehranToUtc(2026, 4, 14, 23, 50) / 1000), from: "𝓶𝓪𝓱𝓪𝓷", from_id: "user7001392382", text: ["hi ", { type: "bold", text: "there" }] },
+      { id: 3, type: "message", date_unixtime: String(tehranToUtc(2026, 4, 15, 0, 20) / 1000), from: "ℯ𝑙𝑖𝓈𝒶", from_id: "user1", text: "x", reply_to_message_id: 2 },
+      { id: 4, type: "message", date_unixtime: String(tehranToUtc(2026, 4, 15, 1, 0) / 1000), from: "Someone", from_id: "user9", text: "y" },
+    ] };
+    expect(df(json)).toBe("tgdesktop");
+    const p = parseTelegramDesktop(json, "result.json");
+    expect(p.source.isGroup).toBe(true);
+    expect(p.messages).toHaveLength(3);
+    expect(p.messages[0]!.x).toBe("hi there");
+    expect(p.messages[0]!.k).toBe("T:7001392382");
+    const g = Object.fromEntries(p.source.senders.map((s) => [s.key, s.guess]));
+    expect(g).toEqual({ "T:7001392382": "M", "T:1": "E", "T:9": "O" });
+    const segs = splitAtMidnight(tehranToUtc(2026, 4, 14, 22), tehranToUtc(2026, 4, 15, 4), p.messages);
+    expect(segs.map((s) => s.messages.length)).toEqual([1, 2]);
+  });
+  it("Rubika group gets its own source id and no private-chat side guesses", () => {
+    const p = parseRubika({ chat_guid: "g0ABCDEFGHIJ", chat_title: "T", messages: [
+      { message_id: "1", time: "100", type: "Text", text: "a", author_object_guid: "u1" },
+      { message_id: "2", time: "101", type: "Text", text: "b", author_object_guid: "u2" },
+      { message_id: "3", time: "102", type: "Text", text: "c", author_object_guid: "u3" },
+    ] }, "f");
+    expect(p.source.id).not.toBe("R");
+    expect(p.source.isGroup).toBe(true);
+    expect(p.source.senders.every((s) => s.guess === "O")).toBe(true);
+  });
+});
