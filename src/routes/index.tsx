@@ -1,24 +1,170 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Cake, Dices, Gift, Heart, Sparkles, Upload, History, PartyPopper, Plus } from "lucide-react";
+import { useStore, type EventKind } from "@/lib/mae/store";
+import { LiveCounter } from "@/components/mae/Counter";
+import { fa, fmtDate, fmtDateTime, fmtTime } from "@/lib/mae/time";
+import { pickRandomSession, sliceRange } from "@/lib/mae/analysis";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "M AND E · خانه‌ی خاطره‌ها" },
+      { name: "description", content: "دفتر خاطرات کیهانی ماهان و الیسا: روز اول ما، شمارنده‌ی زنده و سفر در زمان." },
+      { property: "og:title", content: "M AND E" },
+      { property: "og:description", content: "دفتر خاطرات کیهانی ماهان و الیسا" },
+    ],
+  }),
+  component: Home,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+const BIRTHDAY_SLOTS: { kind: EventKind; title: string; icon: typeof Cake }[] = [
+  { kind: "bd-mahan", title: "تولد ماهان", icon: Cake },
+  { kind: "bd-elisa", title: "تولد الیسا", icon: Cake },
+  { kind: "mahan-celebrates", title: "روزی که ماهان تولد الیسا را جشن گرفت", icon: PartyPopper },
+  { kind: "elisa-greets", title: "روزی که الیسا تولد ماهان را تبریک گفت", icon: Gift },
+];
+
+function Home() {
+  const status = useStore((s) => s.status);
+  const messages = useStore((s) => s.messages);
+  const sessions = useStore((s) => s.sessions);
+  const settings = useStore((s) => s.settings);
+  const events = useStore((s) => s.events);
+  const navigate = useNavigate();
+
+  const firstMsgs = status === "ready" ? sliceRange(messages, settings.firstFrom, settings.firstTo) : [];
+  const earliest = messages[0];
+  const began = sessions.length ? { from: sessions[0]!.from, to: sessions[Math.min(2, sessions.length - 1)]!.to } : null;
+
+  const randomMemory = () => {
+    const s = pickRandomSession(sessions);
+    if (s) navigate({ to: "/replay", search: { from: s.from, to: s.to, title: "یک خاطره‌ی تصادفی", kind: "random" } });
+  };
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <main className="mx-auto max-w-3xl px-4 pt-8">
+      <header className="anim-rise flex items-center justify-between">
+        <div>
+          <p className="text-xs tracking-[0.3em] text-muted-foreground" dir="ltr">M · AND · E</p>
+          <h1 className="font-display text-4xl text-love">ماهان و الیسا</h1>
+        </div>
+        <div className="relative size-16" aria-hidden>
+          <div className="anim-orbit absolute inset-0">
+            <span className="absolute top-0 left-1/2 size-4 -translate-x-1/2 rounded-full bg-mahan glow-mahan" />
+            <span className="absolute bottom-0 left-1/2 size-4 -translate-x-1/2 rounded-full bg-elisa glow-elisa" />
+          </div>
+          <Heart className="absolute inset-0 m-auto size-5 text-accent" />
+        </div>
+      </header>
+
+      {status === "empty" && (
+        <Link to="/import" className="glass anim-rise mt-6 flex items-center gap-4 rounded-3xl p-5">
+          <span className="grid size-12 place-items-center rounded-2xl bg-love text-primary-foreground"><Upload className="size-6" /></span>
+          <span>
+            <span className="block font-bold">وارد کردن آرشیو گفتگوها</span>
+            <span className="text-sm text-muted-foreground">سه فایل را انتخاب کن؛ همه‌چیز فقط روی همین دستگاه پردازش و ذخیره می‌شود.</span>
+          </span>
+        </Link>
+      )}
+
+      {/* Featured, pinned first memory */}
+      <section aria-labelledby="first-day" className="relative mt-6 overflow-hidden rounded-3xl border border-accent/40 p-[1px] anim-rise">
+        <div className="bg-love anim-shimmer absolute inset-0 opacity-60" aria-hidden />
+        <div className="relative rounded-3xl bg-background/85 p-6 backdrop-blur-xl">
+          <div className="flex items-center gap-2 text-xs text-gold"><Sparkles className="size-4" /> خاطره‌ی سنجاق‌شده</div>
+          <h2 id="first-day" className="mt-2 font-display text-4xl">روز اول ما</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            شب {fmtDate(settings.startMs - 1)} تا بامداد {fmtDate(settings.startMs)} — یک گفتگوی پیوسته که از نیمه‌شب گذشت.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-2xl bg-mahan/10 p-3">
+              <div className="text-muted-foreground">پیش از ۰۰:۰۰</div>
+              <div className="mt-1 font-bold">{status === "ready" ? (firstMsgs.filter((m) => m.t < settings.startMs).length ? `${fa(firstMsgs.filter((m) => m.t < settings.startMs).length)} پیام` : "در آرشیو نیست") : "—"}</div>
+            </div>
+            <div className="rounded-2xl bg-elisa/10 p-3">
+              <div className="text-muted-foreground">پس از ۰۰:۰۰</div>
+              <div className="mt-1 font-bold">{status === "ready" ? `${fa(firstMsgs.filter((m) => m.t >= settings.startMs).length)} پیام` : "—"}</div>
+            </div>
+          </div>
+          {status === "ready" && earliest && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              قدیمی‌ترین پیام آرشیو: {fmtDateTime(earliest.t)}. بخش پیش از نیمه‌شب در فایل‌های خروجی نیامده و ساخته نمی‌شود.
+            </p>
+          )}
+          <Link
+            to="/replay"
+            search={{ from: settings.firstFrom, to: settings.firstTo, title: "روز اول ما", kind: "first" }}
+            disabled={status !== "ready"}
+            className="mt-5 inline-flex items-center gap-2 rounded-full bg-love px-6 py-2.5 font-bold text-primary-foreground shadow-lg aria-disabled:opacity-40"
+          >
+            ▶ پخش خاطره
+          </Link>
+        </div>
+      </section>
+
+      <div className="mt-6"><LiveCounter /></div>
+
+      <h2 className="mt-8 mb-3 font-display text-2xl">خاطره‌ها</h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <MemoryCard
+          title="چطور شروع شد"
+          sub={began ? `${fmtDate(began.from)} · نخستین گفتگوهای آرشیو` : "بعد از وارد کردن آرشیو"}
+          icon={History}
+          badge="تأییدشده از آرشیو"
+          to={began ? { from: began.from, to: began.to, title: "چطور شروع شد", kind: "began" } : undefined}
+        />
+        <button type="button" onClick={randomMemory} disabled={!sessions.length} className="glass rounded-3xl p-4 text-start transition-transform hover:-translate-y-0.5 disabled:opacity-50">
+          <Dices className="size-6 text-gold" />
+          <div className="mt-2 font-bold">خاطره‌ی تصادفی</div>
+          <div className="text-xs text-muted-foreground">یک گفتگوی واقعی از آرشیو، هر بار یکی دیگر</div>
+        </button>
+        {BIRTHDAY_SLOTS.map((b) => {
+          const ev = events.find((e) => e.kind === b.kind);
+          return (
+            <MemoryCard
+              key={b.kind}
+              title={b.title}
+              icon={b.icon}
+              sub={ev ? fmtDate(ev.from) : "هنوز تاریخ تأیید نشده"}
+              badge={ev ? "تأییدشده توسط شما" : "نیاز به تنظیم"}
+              to={ev ? { from: ev.from, to: ev.to, title: b.title, kind: b.kind } : undefined}
+              setup={!ev}
+            />
+          );
+        })}
+        {events.filter((e) => e.kind === "custom").map((e) => (
+          <MemoryCard key={e.id} title={e.title} icon={Sparkles} sub={`${fmtDate(e.from)} · ${fmtTime(e.from)}`} badge="خاطره‌ی شخصی" to={{ from: e.from, to: e.to, title: e.title, kind: "custom" }} />
+        ))}
+        <Link to="/memories" className="flex items-center justify-center gap-2 rounded-3xl border border-dashed border-border p-4 text-sm text-muted-foreground hover:text-foreground">
+          <Plus className="size-4" /> تنظیم تاریخ‌ها و افزودن خاطره
+        </Link>
+      </div>
+
+      <div className="mt-8 flex flex-wrap gap-2 text-sm">
+        {status === "ready" && (
+          <Link to="/timeline" search={{ at: messages[messages.length - 1]!.t }} className="glass rounded-full px-4 py-2">
+            تازه‌ترین پیام‌های آرشیو
+          </Link>
+        )}
+        <Link to="/import" className="glass rounded-full px-4 py-2">مدیریت آرشیو و فرستنده‌ها</Link>
+      </div>
+      <p className="mt-6 pb-4 text-center text-[11px] text-muted-foreground">همه‌ی پیام‌ها فقط روی همین دستگاه می‌مانند و جایی ارسال نمی‌شوند.</p>
+    </main>
   );
+}
+
+function MemoryCard({ title, sub, icon: Icon, badge, to, setup }: { title: string; sub: string; icon: typeof Cake; badge: string; to?: { from: number; to: number; title: string; kind: string } | undefined; setup?: boolean | undefined }) {
+  const inner = (
+    <>
+      <div className="flex items-start justify-between">
+        <Icon className="size-6 text-accent" />
+        <span className={setup ? "rounded-full border border-gold/40 px-2 py-0.5 text-[10px] text-gold" : "rounded-full bg-primary/15 px-2 py-0.5 text-[10px] text-primary"}>{badge}</span>
+      </div>
+      <div className="mt-2 font-bold">{title}</div>
+      <div className="text-xs text-muted-foreground">{sub}</div>
+    </>
+  );
+  const cls = "glass block rounded-3xl p-4 transition-transform hover:-translate-y-0.5";
+  if (to) return <Link to="/replay" search={to} className={cls}>{inner}</Link>;
+  return <Link to="/memories" className={cls}>{inner}</Link>;
 }

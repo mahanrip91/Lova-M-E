@@ -10,33 +10,128 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BookmarksRouteImport } from './routes/bookmarks'
+import { Route as ExploreRouteImport } from './routes/explore'
+import { Route as ImportRouteImport } from './routes/import'
+import { Route as MemoriesRouteImport } from './routes/memories'
+import { Route as ReplayRouteImport } from './routes/replay'
+import { Route as SearchRouteImport } from './routes/search'
+import { Route as TimelineRouteImport } from './routes/timeline'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookmarksRoute = BookmarksRouteImport.update({
+  id: '/bookmarks',
+  path: '/bookmarks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExploreRoute = ExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImportRoute = ImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MemoriesRoute = MemoriesRouteImport.update({
+  id: '/memories',
+  path: '/memories',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReplayRoute = ReplayRouteImport.update({
+  id: '/replay',
+  path: '/replay',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TimelineRoute = TimelineRouteImport.update({
+  id: '/timeline',
+  path: '/timeline',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/bookmarks': typeof BookmarksRoute
+  '/explore': typeof ExploreRoute
+  '/import': typeof ImportRoute
+  '/memories': typeof MemoriesRoute
+  '/replay': typeof ReplayRoute
+  '/search': typeof SearchRoute
+  '/timeline': typeof TimelineRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/bookmarks': typeof BookmarksRoute
+  '/explore': typeof ExploreRoute
+  '/import': typeof ImportRoute
+  '/memories': typeof MemoriesRoute
+  '/replay': typeof ReplayRoute
+  '/search': typeof SearchRoute
+  '/timeline': typeof TimelineRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/bookmarks': typeof BookmarksRoute
+  '/explore': typeof ExploreRoute
+  '/import': typeof ImportRoute
+  '/memories': typeof MemoriesRoute
+  '/replay': typeof ReplayRoute
+  '/search': typeof SearchRoute
+  '/timeline': typeof TimelineRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/bookmarks'
+    | '/explore'
+    | '/import'
+    | '/memories'
+    | '/replay'
+    | '/search'
+    | '/timeline'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/bookmarks'
+    | '/explore'
+    | '/import'
+    | '/memories'
+    | '/replay'
+    | '/search'
+    | '/timeline'
+  id:
+    | '__root__'
+    | '/'
+    | '/bookmarks'
+    | '/explore'
+    | '/import'
+    | '/memories'
+    | '/replay'
+    | '/search'
+    | '/timeline'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BookmarksRoute: typeof BookmarksRoute
+  ExploreRoute: typeof ExploreRoute
+  ImportRoute: typeof ImportRoute
+  MemoriesRoute: typeof MemoriesRoute
+  ReplayRoute: typeof ReplayRoute
+  SearchRoute: typeof SearchRoute
+  TimelineRoute: typeof TimelineRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +143,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bookmarks': {
+      id: '/bookmarks'
+      path: '/bookmarks'
+      fullPath: '/bookmarks'
+      preLoaderRoute: typeof BookmarksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/explore': {
+      id: '/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/import': {
+      id: '/import'
+      path: '/import'
+      fullPath: '/import'
+      preLoaderRoute: typeof ImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/memories': {
+      id: '/memories'
+      path: '/memories'
+      fullPath: '/memories'
+      preLoaderRoute: typeof MemoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/replay': {
+      id: '/replay'
+      path: '/replay'
+      fullPath: '/replay'
+      preLoaderRoute: typeof ReplayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/timeline': {
+      id: '/timeline'
+      path: '/timeline'
+      fullPath: '/timeline'
+      preLoaderRoute: typeof TimelineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BookmarksRoute: BookmarksRoute,
+  ExploreRoute: ExploreRoute,
+  ImportRoute: ImportRoute,
+  MemoriesRoute: MemoriesRoute,
+  ReplayRoute: ReplayRoute,
+  SearchRoute: SearchRoute,
+  TimelineRoute: TimelineRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

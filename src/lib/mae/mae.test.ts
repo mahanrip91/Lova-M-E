@@ -1,0 +1,115 @@
+import { describe, expect, it } from "vitest";
+import { dayKey, elapsedJalali, fmtTime, jalaliOf, jalaliToUtc, tehranToUtc, toGregorian, toJalali } from "./time";
+import { detectFormat, normalizeFa, parseRubika, parseTelegram, sortMessages, type Msg } from "./parse";
+import { birthdayCandidates, dayStats, pickRandomSession, sessionize, sliceRange, splitAtMidnight } from "./analysis";
+import { DEFAULT_START } from "./store";
+
+const mk = (t: number, i: number, k = "a", x = "hi"): Msg => ({ u: `X:${i}`, s: "X", t, k, x, kd: "text", o: i });
+
+describe("Jalali / Tehran time", () => {
+  it("2026-04-15 is 26 Farvardin 1405", () => expect(toJalali(2026, 4, 15)).toEqual({ jy: 1405, jm: 1, jd: 26 }));
+  it("round-trips Jalali to Gregorian", () => expect(toGregorian(1405, 1, 26)).toEqual({ gy: 2026, gm: 4, gd: 15 }));
+  it("Nowruz 1405 is 2026-03-21", () => expect(toGregorian(1405, 1, 1)).toEqual({ gy: 2026, gm: 3, gd: 21 }));
+  it("Tehran midnight is 20:30 UTC the previous day", () => {
+    expect(new Date(tehranToUtc(2026, 4, 15)).toISOString()).toBe("2026-04-14T20:30:00.000Z");
+    expect(dayKey(Date.parse("2026-04-14T20:29:59Z"))).toBe("2026-04-14");
+    expect(dayKey(Date.parse("2026-04-14T20:30:00Z"))).toBe("2026-04-15");
+  });
+  it("default counter start is 1405/01/26 00:00 Tehran", () => {
+    expect(jalaliOf(DEFAULT_START)).toMatchObject({ jy: 1405, jm: 1, jd: 26, h: 0, mi: 0, s: 0 });
+  });
+  it("Unix-seconds and ISO inputs agree (earliest archived message is 03:28 Tehran)", () => {
+    const unix = 1776211116 * 1000;
+    expect(fmtTime(unix)).toBe("۰۳:۲۸");
+    expect(Date.parse("2026-04-14T23:58:36+00:00")).toBe(unix);
+  });
+});
+
+describe("live counter (elapsed on Jalali calendar)", () => {
+  it("computes exact components from the confirmed start to an injected now", () => {
+    const now = jalaliToUtc(1405, 8, 7, 11, 53, 9);
+    const e = elapsedJalali(DEFAULT_START, now);
+    expect(e).toMatchObject({ years: 0, months: 6, days: 11, hours: 11, minutes: 53, seconds: 9, negative: false });
+  });
+  it("total days uses real elapsed time, not the archive", () => {
+    expect(elapsedJalali(DEFAULT_START, DEFAULT_START + 200 * 86400000 + 5000).totalDays).toBe(200);
+  });
+  it("borrows the length of Esfand correctly (1404 has 29 days, 1403 has 30)", () => {
+    const e = elapsedJalali(jalaliToUtc(1404, 11, 30), jalaliToUtc(1405, 1, 1));
+    expect(e).toMatchObject({ months: 1, days: 0 });
+    const e2 = elapsedJalali(jalaliToUtc(1403, 12, 10), jalaliToUtc(1404, 1, 5));
+    expect(e2).toMatchObject({ months: 0, days: 25 });
+  });
+  it("ticks: one second later adds one second", () => {
+    const a = elapsedJalali(DEFAULT_START, DEFAULT_START + 61000);
+    expect(a).toMatchObject({ minutes: 1, seconds: 1 });
+  });
+});
+
+describe("first conversation across midnight", () => {
+  const base = tehranToUtc(2026, 4, 14, 23, 40);
+  const msgs = Array.from({ length: 6 }, (_, i) => mk(base + i * 10 * 60000, i));
+  it("stays one session", () => {
+    const s = sessionize(msgs);
+    expect(s).toHaveLength(1);
+    expect(s[0]!.crossesMidnight).toBe(true);
+  });
+  it("splits visually into 2 calendar-date segments", () => {
+    const segs = splitAtMidnight(base, base + 60 * 60000, msgs);
+    expect(segs.map((x) => x.day)).toEqual(["2026-04-14", "2026-04-15"]);
+    expect(segs[0]!.messages).toHaveLength(2);
+    expect(segs[1]!.messages).toHaveLength(4);
+  });
+  it("missing pre-midnight part yields an empty segment, never invented messages", () => {
+    const only = [mk(tehranToUtc(2026, 4, 15, 3, 28), 0), mk(tehranToUtc(2026, 4, 15, 3, 29), 1)];
+    const from = DEFAULT_START - 3 * 3600000, to = DEFAULT_START + 6 * 3600000;
+    const segs = splitAtMidnight(from, to, sliceRange(only, from, to));
+    expect(segs[0]!.messages).toHaveLength(0);
+    expect(segs[1]!.messages).toHaveLength(2);
+  });
+  it("respects a user-edited range", () => {
+    expect(sliceRange(msgs, base + 15 * 60000, base + 35 * 60000).map((m) => m.o)).toEqual([2, 3]);
+  });
+});
+
+describe("parsing & merge", () => {
+  it("detects formats", () => {
+    expect(detectFormat({ chat_guid: "g", messages: [] })).toBe("rubika");
+    expect(detectFormat([{ sender_id: 1, date: "x" }])).toBe("telegram");
+    expect(detectFormat({ foo: 1 })).toBeNull();
+  });
+  it("drops sensitive Rubika file fields", () => {
+    const p = parseRubika({ chat_guid: "g2", messages: [{ message_id: "1", time: "100", type: "FileInline", author_object_guid: "g1", file_inline: { type: "Image", file_name: "a.jpg", access_hash_rec: "SECRET", file_id: "9" } }] }, "f");
+    expect(JSON.stringify(p.messages)).not.toContain("SECRET");
+    expect(p.messages[0]!.kd).toBe("image");
+    expect(p.source.senders.find((s) => s.key === "R:g1")?.guess).toBe("M");
+  });
+  it("maps senders by decorated name", () => {
+    const p = parseTelegram([{ id: 1, date: "2026-01-01T00:00:00+00:00", sender_id: 5, sender_name: "𝓶𝓪𝓱𝓪𝓷", text: "x", reply_to: null }, { id: 2, date: "2026-01-01T00:00:01+00:00", sender_id: 6, sender_name: "꣄𖹭", text: "", reply_to: 1 }], "f", "T1", "t");
+    expect(p.source.senders.find((s) => s.key === "T:5")?.guess).toBe("M");
+    expect(p.source.senders.find((s) => s.key === "T:6")?.guess).toBe("E");
+    expect(p.messages[1]).toMatchObject({ kd: "nontext", r: "T1:1" });
+  });
+  it("merges chronologically with stable tie-breaks", () => {
+    const a = [{ ...mk(10, 0), s: "B", u: "B:0" }, { ...mk(10, 1), s: "B", u: "B:1" }];
+    const b = [{ ...mk(10, 0), s: "A", u: "A:0" }, { ...mk(5, 1), s: "A", u: "A:1" }];
+    expect(sortMessages([...a, ...b], ["A", "B"]).map((m) => m.u)).toEqual(["A:1", "A:0", "B:0", "B:1"]);
+  });
+  it("normalizes Persian for search", () => expect(normalizeFa("مي\u200cكنم")).toBe("میکنم"));
+});
+
+describe("memories", () => {
+  it("birthday candidates are scored, not facts", () => {
+    const t = tehranToUtc(2026, 9, 27, 12);
+    const msgs = [mk(t, 0, "m", "تولدت مبارک"), mk(t + 1000, 1, "m", "🎂"), mk(t + 2000, 2, "m", "تولد تولد"), mk(t + 3000, 3, "e", "مرسی")];
+    const side = (k: string) => (k === "m" ? "M" : "E") as "M" | "E";
+    const c = birthdayCandidates(msgs, side, dayStats(msgs, side));
+    expect(c[0]).toMatchObject({ day: "2026-09-27", side: "M", matches: 3 });
+  });
+  it("random memory always returns a real session", () => {
+    const msgs = Array.from({ length: 30 }, (_, i) => mk(i * 1000, i));
+    const s = pickRandomSession(sessionize(msgs), () => 0.5)!;
+    expect(s.count).toBe(30);
+    expect(pickRandomSession([])).toBeNull();
+  });
+});

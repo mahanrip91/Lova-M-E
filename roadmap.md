@@ -1,0 +1,13 @@
+# M AND E roadmap
+- [x] Design system (cosmic/neon, RTL, Vazirmatn)
+- [x] On-device import (3 formats), sensitive fields dropped, side confirmation
+- [x] Tehran/Jalali time utils + tests
+- [x] Home: pinned «روز اول ما», live counter (default 1405/01/26 00:00 Tehran, editable)
+- [x] Unified timeline (virtualized), bookmarks, latest-archive jump
+- [x] Replay player (play/pause/speed/skip, midnight split, gap notice)
+- [x] Random memory, how-it-began
+- [x] Birthday/event candidates + confirmation + custom events
+- [x] Animated Jalali explorer
+- [x] Search
+- [x] Installable (manifest + icons; offline caching not added yet)
+- [x] Tests + build check
