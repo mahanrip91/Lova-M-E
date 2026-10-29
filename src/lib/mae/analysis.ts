@@ -8,8 +8,8 @@ export function sessionize(msgs: Msg[], gap = SESSION_GAP_MS): Session[] {
   const out: Session[] = [];
   if (!msgs.length) return out;
   let a = 0;
-  const push = (b: number) => out.push({ a, b, from: msgs[a].t, to: msgs[b].t, count: b - a + 1, crossesMidnight: dayKey(msgs[a].t) !== dayKey(msgs[b].t) });
-  for (let i = 1; i < msgs.length; i++) if (msgs[i].t - msgs[i - 1].t >= gap) { push(i - 1); a = i; }
+  const push = (b: number) => out.push({ a, b, from: msgs[a]!.t, to: msgs[b]!.t, count: b - a + 1, crossesMidnight: dayKey(msgs[a]!.t) !== dayKey(msgs[b]!.t) });
+  for (let i = 1; i < msgs.length; i++) if (msgs[i]!.t - msgs[i - 1]!.t >= gap) { push(i - 1); a = i; }
   push(msgs.length - 1);
   return out;
 }
@@ -17,7 +17,7 @@ export function sessionize(msgs: Msg[], gap = SESSION_GAP_MS): Session[] {
 /** First index with t >= ms (binary search). */
 export function lowerBound(msgs: Msg[], ms: number): number {
   let lo = 0, hi = msgs.length;
-  while (lo < hi) { const mid = (lo + hi) >> 1; if (msgs[mid].t < ms) lo = mid + 1; else hi = mid; }
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (msgs[mid]!.t < ms) lo = mid + 1; else hi = mid; }
   return lo;
 }
 export function sliceRange(msgs: Msg[], from: number, to: number): Msg[] {
@@ -48,7 +48,7 @@ export function dayStats(msgs: Msg[], sideOf: (k: string) => Side | undefined): 
     d.total++;
     const s = sideOf(m.k);
     if (s) d[s]++;
-    d.hours[Math.floor(((m.t - dayStartMs(day)) / 3600000)) % 24]++;
+    d.hours[Math.floor((m.t - dayStartMs(day)) / 3600000) % 24] = (d.hours[Math.floor((m.t - dayStartMs(day)) / 3600000) % 24] ?? 0) + 1;
   }
   return [...map.values()].sort((a, b) => (a.day < b.day ? -1 : 1));
 }
@@ -86,5 +86,5 @@ export function pickRandomSession(sessions: Session[], rand = Math.random): Sess
   const good = sessions.filter((s) => s.count >= 12);
   const pool = good.length ? good : sessions;
   if (!pool.length) return null;
-  return pool[Math.floor(rand() * pool.length)];
+  return pool[Math.floor(rand() * pool.length)] ?? null;
 }

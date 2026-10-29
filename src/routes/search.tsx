@@ -40,10 +40,10 @@ function SearchPage() {
     const out: Msg[] = [];
     let total = 0;
     for (let i = 0; i < messages.length; i++) {
-      const m = messages[i];
+      const m = messages[i]!;
       if (src && m.s !== src) continue;
       if (side && sides[m.k]?.side !== side) continue;
-      if (norm[i].includes(n)) { total++; if (out.length < 300) out.push(m); }
+      if (norm[i]!.includes(n)) { total++; if (out.length < 300) out.push(m); }
     }
     return { results: out, total };
   }, [dq, messages, src, side, sides]);

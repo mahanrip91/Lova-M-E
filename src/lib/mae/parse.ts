@@ -43,7 +43,7 @@ function finalizeSenders(counts: Map<string, { name: string; count: number }>, h
   if (out.length === 2) {
     const known = list.find((x) => x.side);
     list.forEach((x, i) => {
-      if (!x.side && known) { out[i].guess = known.side === "M" ? "E" : "M"; out[i].guessReason = "حدس: طرف مقابل در همین گفتگو"; }
+      if (!x.side && known && out[i]) { out[i].guess = known.side === "M" ? "E" : "M"; out[i]!.guessReason = "حدس: طرف مقابل در همین گفتگو"; }
     });
   }
   return out;

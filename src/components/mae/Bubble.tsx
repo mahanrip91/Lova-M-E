@@ -18,15 +18,15 @@ const kindLabel: Record<string, { label: string; icon: typeof ImageIcon }> = {
 
 export interface BubbleProps {
   m: Msg;
-  side?: "M" | "E";
-  sourceLabel?: string;
-  reply?: Msg | null;
-  replyMissing?: boolean;
-  bookmarked?: boolean;
-  onBookmark?: () => void;
-  onReplyClick?: () => void;
-  highlight?: boolean;
-  animate?: boolean;
+  side?: "M" | "E" | undefined;
+  sourceLabel?: string | undefined;
+  reply?: Msg | null | undefined;
+  replyMissing?: boolean | undefined;
+  bookmarked?: boolean | undefined;
+  onBookmark?: (() => void) | undefined;
+  onReplyClick?: (() => void) | undefined;
+  highlight?: boolean | undefined;
+  animate?: boolean | undefined;
 }
 
 export const Bubble = memo(function Bubble({ m, side, sourceLabel, reply, replyMissing, bookmarked, onBookmark, onReplyClick, highlight, animate }: BubbleProps) {

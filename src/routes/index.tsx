@@ -34,7 +34,7 @@ function Home() {
 
   const firstMsgs = status === "ready" ? sliceRange(messages, settings.firstFrom, settings.firstTo) : [];
   const earliest = messages[0];
-  const began = sessions.length ? { from: sessions[0].from, to: sessions[Math.min(2, sessions.length - 1)].to } : null;
+  const began = sessions.length ? { from: sessions[0]!.from, to: sessions[Math.min(2, sessions.length - 1)]!.to } : null;
 
   const randomMemory = () => {
     const s = pickRandomSession(sessions);
@@ -142,7 +142,7 @@ function Home() {
 
       <div className="mt-8 flex flex-wrap gap-2 text-sm">
         {status === "ready" && (
-          <Link to="/timeline" search={{ at: messages[messages.length - 1].t }} className="glass rounded-full px-4 py-2">
+          <Link to="/timeline" search={{ at: messages[messages.length - 1]!.t }} className="glass rounded-full px-4 py-2">
             تازه‌ترین پیام‌های آرشیو
           </Link>
         )}
@@ -153,7 +153,7 @@ function Home() {
   );
 }
 
-function MemoryCard({ title, sub, icon: Icon, badge, to, setup }: { title: string; sub: string; icon: typeof Cake; badge: string; to?: { from: number; to: number; title: string; kind: string }; setup?: boolean }) {
+function MemoryCard({ title, sub, icon: Icon, badge, to, setup }: { title: string; sub: string; icon: typeof Cake; badge: string; to?: { from: number; to: number; title: string; kind: string } | undefined; setup?: boolean | undefined }) {
   const inner = (
     <>
       <div className="flex items-start justify-between">

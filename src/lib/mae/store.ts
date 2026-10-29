@@ -112,7 +112,7 @@ export async function importFiles(files: File[], onProgress?: (p: string) => voi
 }
 
 export async function setSide(key: string, side: Side) {
-  const sides = { ...state.sides, [key]: { ...state.sides[key], side, confirmed: true } };
+  const sides = { ...state.sides, [key]: { name: key, reason: "", ...state.sides[key], side, confirmed: true } };
   await set("mae:sides", sides);
   setState({ sides, days: dayStats(state.messages, (k) => sides[k]?.side) });
 }

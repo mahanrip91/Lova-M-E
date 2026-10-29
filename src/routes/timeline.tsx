@@ -7,12 +7,12 @@ import { lowerBound } from "@/lib/mae/analysis";
 import { dayKey, fmtDate } from "@/lib/mae/time";
 import { Bubble, DayDivider } from "@/components/mae/Bubble";
 
-interface Search { at?: number; u?: string }
+interface Search { at?: number | undefined; u?: string | undefined }
 
 export const Route = createFileRoute("/timeline")({
   validateSearch: (s: Record<string, unknown>): Search => ({
-    at: s.at != null ? Number(s.at) : undefined,
-    u: typeof s.u === "string" ? s.u : undefined,
+    at: s["at"] != null ? Number(s["at"]) : undefined,
+    u: typeof s["u"] === "string" ? s["u"] : undefined,
   }),
   head: () => ({
     meta: [
@@ -51,7 +51,7 @@ function Timeline() {
 
   useEffect(() => {
     if (target < 0) return;
-    setFocus(list[target].u);
+    setFocus(list[target]!.u);
     requestAnimationFrame(() => v.scrollToIndex(target, { align: "center" }));
     const t = setTimeout(() => v.scrollToIndex(target, { align: "center" }), 250);
     return () => clearTimeout(t);
@@ -90,7 +90,7 @@ function Timeline() {
       <div ref={parentRef} className="mt-2 flex-1 overflow-y-auto" role="log" aria-label="پیام‌ها">
         <div style={{ height: v.getTotalSize(), position: "relative" }}>
           {items.map((it) => {
-            const m = list[it.index];
+            const m = list[it.index]!;
             const prev = list[it.index - 1];
             const newDay = !prev || dayKey(prev.t) !== dayKey(m.t);
             const ri = m.r ? uidIndex.get(m.r) : undefined;

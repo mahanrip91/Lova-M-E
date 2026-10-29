@@ -17,7 +17,7 @@ export function dayKey(ms: number): string {
   return new Date(ms + TEHRAN_OFFSET_MS).toISOString().slice(0, 10);
 }
 export function dayStartMs(key: string): number {
-  const [y, m, d] = key.split("-").map(Number);
+  const [y = 1970, m = 1, d = 1] = key.split("-").map(Number);
   return tehranToUtc(y, m, d);
 }
 
@@ -27,9 +27,9 @@ const mod = (a: number, b: number) => a - ~~(a / b) * b;
 const BREAKS = [-61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178];
 function jalCal(jy: number) {
   const gy = jy + 621;
-  let leapJ = -14, jp = BREAKS[0], jump = 0;
+  let leapJ = -14, jp = BREAKS[0]!, jump = 0;
   for (let i = 1; i < BREAKS.length; i++) {
-    const jm = BREAKS[i];
+    const jm = BREAKS[i]!;
     jump = jm - jp;
     if (jy < jm) break;
     leapJ = leapJ + div(jump, 33) * 8 + div(mod(jump, 33), 4);
@@ -97,11 +97,11 @@ export function jalaliToUtc(jy: number, jm: number, jd: number, h = 0, mi = 0, s
 // ---- formatting ----
 export const JALALI_MONTHS = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
 const FA = "۰۱۲۳۴۵۶۷۸۹";
-export const fa = (v: number | string) => String(v).replace(/\d/g, (c) => FA[+c]);
+export const fa = (v: number | string) => String(v).replace(/\d/g, (c) => FA[+c]!);
 const p2 = (n: number) => String(n).padStart(2, "0");
 export function fmtDate(ms: number) {
   const j = jalaliOf(ms);
-  return `${fa(j.jd)} ${JALALI_MONTHS[j.jm - 1]} ${fa(j.jy)}`;
+  return `${fa(j.jd)} ${JALALI_MONTHS[j.jm - 1]!} ${fa(j.jy)}`;
 }
 export function fmtTime(ms: number) {
   const j = jalaliOf(ms);

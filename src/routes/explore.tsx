@@ -41,12 +41,12 @@ function Explore() {
   const [mi, setMi] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
   const [jumpAt, setJumpAt] = useState<number>(0);
-  useEffect(() => { if (days.length && !sel) { setSel(days[0].day); setJumpAt(dayStartMs(days[0].day)); } }, [days, sel]);
+  useEffect(() => { if (days.length && !sel) { setSel(days[0]!.day); setJumpAt(dayStartMs(days[0]!.day)); } }, [days, sel]);
 
   if (status === "loading") return <p className="p-8 text-center text-muted-foreground">در حال بارگذاری…</p>;
   if (status === "empty") return <p className="p-8 text-center">ابتدا آرشیو را <Link to="/import" className="text-primary underline">وارد کن</Link>.</p>;
 
-  const month = months[mi];
+  const month = months[Math.min(mi, months.length - 1)]!;
   const selDay = days.find((d) => d.day === sel) ?? null;
   const selIdx = days.findIndex((d) => d.day === sel);
   const choose = (day: string) => {
@@ -123,10 +123,10 @@ function Explore() {
             <rect key={d.day} x={i} y={40 - (d.total / max) * 40} width={0.8} height={(d.total / max) * 40} fill={i === selIdx ? "var(--gold)" : "var(--accent)"} opacity={i === selIdx ? 1 : 0.55} />
           ))}
         </svg>
-        <input type="range" min={0} max={days.length - 1} value={Math.max(0, selIdx)} onChange={(e) => choose(days[+e.target.value].day)} aria-label="روز" aria-valuetext={selDay ? fmtDate(dayStartMs(selDay.day)) : ""} className="w-full accent-[var(--accent)]" />
+        <input type="range" min={0} max={days.length - 1} value={Math.max(0, selIdx)} onChange={(e) => choose(days[+e.target.value]!.day)} aria-label="روز" aria-valuetext={selDay ? fmtDate(dayStartMs(selDay.day)) : ""} className="w-full accent-[var(--accent)]" />
         <div className="flex justify-between text-[10px] text-muted-foreground">
-          <span>{fmtDate(dayStartMs(days[0].day))}</span>
-          <span>{fmtDate(dayStartMs(days[days.length - 1].day))}</span>
+          <span>{fmtDate(dayStartMs(days[0]!.day))}</span>
+          <span>{fmtDate(dayStartMs(days[days.length - 1]!.day))}</span>
         </div>
       </section>
 

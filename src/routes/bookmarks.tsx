@@ -21,7 +21,7 @@ function Bookmarks() {
   const messages = useStore((s) => s.messages);
   const uidIndex = useStore((s) => s.uidIndex);
   const sides = useStore((s) => s.sides);
-  const list = bookmarks.map((u) => messages[uidIndex.get(u) ?? -1]).filter(Boolean).sort((a, b) => a.t - b.t);
+  const list = bookmarks.map((u) => messages[uidIndex.get(u) ?? -1]).filter((m): m is NonNullable<typeof m> => !!m).sort((a, b) => a.t - b.t);
   return (
     <main className="mx-auto max-w-3xl px-4">
       <PageHeader title="نشان‌ها" subtitle="روی ستاره‌ی هر پیام در تایم‌لاین بزن تا اینجا بیاید" />
