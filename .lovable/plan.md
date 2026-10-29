@@ -96,3 +96,79 @@ UI (main thread) <- paged queries <- IndexedDB
 - The file 3 sender is treated as Elisa, and in Rubika `u0Efd…` is treated as Elisa. You can change both on the confirm screen.
 - Empty-text Telegram messages are shown as media placeholders, not hidden.
 - No passcode lock. Adding an optional PIN screen is recommended, since this content is private.
+
+## Part C — Memory Journey (animated experience)
+
+### Verified facts for memories (times in Tehran; checked on counts and times only, no message text read)
+- **First message ever:** 15 Apr 2026, 03:28, on Rubika.
+- **Last message:** 29 Oct 2026, 11:04, on Telegram B. Several goodbye-style words appear among the last 300 messages, but not necessarily as a final farewell.
+- **First calendar day (15 Apr):** only 10 messages, in two short bursts at 03:28 and 12:17.
+- **No conversation in the first week ends with a goodbye around 5 AM.** The first long night is 17 Apr, 02:28 to 03:15 (48 messages, with a goodbye-like word near the end). The first very long session is 20 Apr, 19:51 to 00:57 (396 messages).
+- **The "5 AM goodbye" can't be confirmed.** The app will find candidate nights automatically (sessions that end between 04:00 and 06:30 with a goodbye-like word in the last messages) and let you pick the one you remember. It won't invent anything.
+- **Birthday-related words** (تولد, 🎂, happy birthday) appear in 86 messages across about 40 days. The busiest days are 27 Sep, 1 Oct and 2 Oct (6 to 8 matches each). These are only **candidates**. The actual birthday dates for Mahan and Elisa are **unknown**.
+- **Coverage:** 169 active days. The busiest day is 15 Aug, with 2,244 messages.
+
+### Memory scenes
+| Scene | How the date is chosen | Default status |
+|------|------|------|
+| How it began | First message ever, plus the first sessions of 15–17 Apr | Verified |
+| First day | The whole first Tehran calendar day, or a first night you pick | Verified, with a choice |
+| First long night | First session longer than 45 minutes | Verified (17 Apr) |
+| Goodbye night (around 5 AM) | Candidate list you confirm | Unknown, needs your confirmation |
+| Last message | Final message plus the last session before it | Verified |
+| Mahan's birthday / Elisa's birthday | Your input, or confirming a suggested day | Unknown |
+| Mahan celebrates Elisa's birthday / Elisa greets Mahan | Birthday-word days, split by sender side | Suggested only, with confidence labels |
+| Custom memories | Any date or message range you save | Set by you |
+
+- Every scene card shows a badge: **Verified**, **Suggested (high / medium / low confidence)** or **Needs setup**.
+- An unconfirmed scene is locked behind a "Confirm this memory" step.
+
+### Event discovery and confirmation
+- **Detection runs locally in the worker and scores each candidate day.** Signals:
+  - birthday keywords, emoji and greeting phrases
+  - which side sent them
+  - a spike in activity that day
+  - a cluster of matches within 48 hours
+  - mentions of the same date across the sources
+- **High confidence** means at least 3 matches from one side plus an activity spike. **Medium** means 2 matches or keywords only. **Low** means a single match.
+- **Review screen:** for each candidate you see the date (Jalali and Gregorian), counts, the sender side and a blurred snippet you can tap to reveal. Buttons: Confirm / Not this / Pick another day / Edit time range.
+- **Manual corrections:** set or change any event date, rename events, reassign the sender side, and change a scene's start and end messages. Every change is stored on the device and can be undone.
+
+### Cinematic replay
+- **Intro (3 to 6 seconds):** animated title, the Jalali date, and a few verified figures (message count, duration, sources, who wrote first). Every line comes from the real data, with no generated story.
+- **Then messages replay one by one in time order**, with typing-style reveals.
+- **Controls:**
+  - Play / pause
+  - Speed: 1×, 2×, 5×, 20×, or "real time compressed", where long gaps are capped at 2 seconds
+  - Skip to next or previous session
+  - Scrub bar
+  - "Open in timeline" jumps to the same message in the main stream
+- A visible end card shows the real final message of that scene. Nothing is added after it.
+
+### Date exploration
+- **Orbit view:** months orbit as rings. Each day is a star whose brightness and size reflect how many messages it has, and its color shows the share from Mahan, Elisa or both. Confirmed memories glow as constellations.
+- **Time-travel slider:** a horizontal timeline from Apr to Oct 2026 with Jalali month labels (فروردین to آبان) and an activity histogram. Drag to scrub, pinch or wheel to zoom from year to month, day and hour.
+- **Hour wheel** for the chosen day, then a jump straight to that minute in the timeline.
+- Keyboard: arrow keys move day by day, PageUp/PageDown move month by month, and Enter opens the selection. Screen-reader labels give the Jalali date and the message count.
+
+### Performance and accessibility
+- Daily and hourly counts are calculated once at import and cached, so views draw from about 170 day records instead of 95k messages.
+- Star fields are drawn on a single canvas (Canvas2D, with device pixel ratio limited to 2). Transitions use only transform and opacity (Framer Motion), and replays load messages in windows of 200.
+- **Reduced motion:** with `prefers-reduced-motion`, or the in-app toggle, everything switches to cross-fades with no drifting stars and instant reveals.
+- Focus rings, 4.5:1 contrast and captioned controls.
+
+### Privacy
+- Scenes, detected events and confirmations live only in the on-device database. No message text is sent to any AI or cloud service, and nothing is built into the published app.
+- Any test data is synthetic.
+
+### Technical additions
+- New stores: `days {date, counts by side and source}`, `sessions {start, end, count, endsWithBye}` and `events {kind, date, range, confidence, status: suggested|confirmed|rejected, manual}`.
+- Detectors are pure functions with unit tests: session split (gap of 90 minutes or more), goodbye-like ending, birthday scoring and Jalali boundaries in Tehran time.
+- Pages: `/memories` (scene gallery), `/memories/$sceneId` (player), `/explore` (orbit and slider).
+
+### Questions for you
+1. What are Mahan's and Elisa's real birthdays, or should the app only suggest them from the chats?
+2. Which "goodbye around 5 AM" night do you mean: the first one, or a specific later date?
+3. Should "first day" mean 15 Apr only (10 messages), or the first real long night?
+4. Should private snippets on the review screen be blurred by default?
+5. Should there be an optional PIN to open the app?
