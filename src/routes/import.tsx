@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ShieldCheck, Trash2, Upload, CheckCircle2, AlertTriangle } from "lucide-react";
-import { confirmAllSides, importFiles, setSide, useStore, wipeAll, type ImportReport } from "@/lib/mae/store";
+import { confirmAllSides, importFiles, setSide, setSourceGroup, useStore, wipeAll, type ImportReport } from "@/lib/mae/store";
 import { fa, fmtDate } from "@/lib/mae/time";
 import { PageHeader } from "@/components/mae/Nav";
 
@@ -42,7 +42,7 @@ function ImportPage() {
       <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-3xl border-2 border-dashed border-accent/40 p-8 text-center transition-colors hover:bg-accent/5">
         <Upload className="size-8 text-accent" />
         <span className="font-bold">انتخاب فایل‌های JSON</span>
-        <span className="text-xs text-muted-foreground">می‌توانی هر سه فایل را با هم انتخاب کنی. وارد کردن دوباره، همان منبع را جایگزین می‌کند.</span>
+        <span className="text-xs text-muted-foreground">گفتگوهای خصوصی و آرشیو گروهی (روبیکا، تلگرام ساده یا result.json تلگرام دسکتاپ). می‌توانی چند فایل را با هم انتخاب کنی. وارد کردن دوباره، همان منبع را جایگزین می‌کند.</span>
         <input type="file" accept=".json,application/json" multiple className="sr-only" disabled={!!busy} onChange={(e) => onFiles(e.target.files)} />
       </label>
       {busy && <p className="mt-3 text-center text-sm text-primary" role="status">{busy}</p>}
@@ -64,6 +64,10 @@ function ImportPage() {
                   <span className="text-xs text-muted-foreground">{fa(s.count)} پیام · {fmtDate(s.from)} تا {fmtDate(s.to)}</span>
                 </div>
                 <p className="mt-1 truncate text-[11px] text-muted-foreground" dir="auto">{s.fileName}</p>
+                <label className="mt-2 flex items-center gap-2 text-xs">
+                  <input type="checkbox" checked={!!s.isGroup} onChange={(ev) => setSourceGroup(s.id, ev.target.checked)} />
+                  این آرشیوِ یک گفتگوی گروهی است
+                </label>
                 <div className="mt-3 space-y-2">
                   {s.senders.map((sn) => {
                     const e = sides[sn.key];
@@ -74,10 +78,10 @@ function ImportPage() {
                           {!e?.confirmed && <div className="text-[11px] text-gold">{e?.reason || "حدس"} — لطفاً تأیید کن</div>}
                         </div>
                         <div role="radiogroup" aria-label="کدام طرف؟" className="flex gap-1">
-                          {(["M", "E"] as const).map((side) => (
+                          {(["M", "E", "O"] as const).map((side) => (
                             <button key={side} type="button" role="radio" aria-checked={e?.side === side} onClick={() => setSide(sn.key, side)}
-                              className={`rounded-full border px-3 py-1 text-xs ${e?.side === side ? (side === "M" ? "border-mahan bg-mahan/20" : "border-elisa bg-elisa/20") : "border-border"}`}>
-                              {side === "M" ? "ماهان" : "الیسا"}
+                              className={`rounded-full border px-3 py-1 text-xs ${e?.side === side ? (side === "M" ? "border-mahan bg-mahan/20" : side === "E" ? "border-elisa bg-elisa/20" : "border-gold bg-gold/15") : "border-border"}`}>
+                              {side === "M" ? "ماهان" : side === "E" ? "الیسا" : "عضو دیگر"}
                             </button>
                           ))}
                         </div>

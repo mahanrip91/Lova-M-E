@@ -98,7 +98,7 @@ function Timeline() {
             return (
               <div key={m.u} data-index={it.index} ref={v.measureElement} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${it.start}px)` }}>
                 {newDay && <DayDivider label={fmtDate(m.t)} />}
-                <Bubble m={m} side={sides[m.k]?.side} sourceLabel={srcLabel[m.s]} reply={reply} replyMissing={!!m.r && !reply}
+                <Bubble m={m} side={sides[m.k]?.side} senderName={sides[m.k]?.name} sourceLabel={srcLabel[m.s]} reply={reply} replyMissing={!!m.r && !reply}
                   bookmarked={bm.has(m.u)} onBookmark={() => toggleBookmark(m.u)} onReplyClick={reply ? () => jumpTo(reply.u) : undefined} highlight={focus === m.u} />
               </div>
             );

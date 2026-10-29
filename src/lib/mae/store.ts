@@ -1,19 +1,20 @@
 // On-device store. All chat data lives only in this browser's IndexedDB.
 import { useSyncExternalStore } from "react";
 import { get, set, del } from "idb-keyval";
-import { detectFormat, parseRubika, parseTelegram, sortMessages, telegramSourceId, type Msg, type Side, type Source } from "./parse";
+import { detectFormat, parseRubika, parseTelegram, parseTelegramDesktop, sortMessages, telegramSourceId, type Msg, type Side, type Source } from "./parse";
 import { dayStats, sessionize, type DayStat, type Session } from "./analysis";
 import { jalaliToUtc } from "./time";
 
 export type EventKind = "bd-mahan" | "bd-elisa" | "mahan-celebrates" | "elisa-greets" | "custom";
 export interface MemoryEvent { id: string; kind: EventKind; title: string; from: number; to: number; origin: "manual" | "candidate"; confidence?: string }
 export interface SideEntry { side: Side; confirmed: boolean; name: string; reason: string }
-export interface Settings { startMs: number; firstFrom: number; firstTo: number; startConfirmed: boolean }
+export interface Settings { startMs: number; firstFrom: number; firstTo: number; startConfirmed: boolean; /** source holding the first night (a group chat); null until the user picks it */ firstSourceId: string | null }
 
 export const DEFAULT_START = jalaliToUtc(1405, 1, 26, 0, 0, 0); // user-confirmed: 26 Farvardin 1405, 00:00 Tehran
 export const defaultSettings = (): Settings => ({
   startMs: DEFAULT_START,
   startConfirmed: true,
+  firstSourceId: null,
   firstFrom: DEFAULT_START - 3 * 3600000,
   firstTo: DEFAULT_START + 6 * 3600000,
 });
@@ -87,7 +88,7 @@ export async function importFiles(files: File[], onProgress?: (p: string) => voi
       const json = JSON.parse(await file.text());
       const fmt = detectFormat(json);
       if (!fmt) { reports.push({ fileName: file.name, ok: false, message: "قالب فایل شناخته نشد" }); continue; }
-      const parsed = fmt === "rubika" ? parseRubika(json, file.name) : (() => {
+      const parsed = fmt === "rubika" ? parseRubika(json, file.name) : fmt === "tgdesktop" ? parseTelegramDesktop(json, file.name) : (() => {
         const id = telegramSourceId(json);
         const existing = sources.find((s) => s.id === id);
         return parseTelegram(json, file.name, id, existing?.label ?? `تلگرام ${["۱", "۲", "۳", "۴"][tgN++] ?? ""}`);
@@ -115,6 +116,11 @@ export async function setSide(key: string, side: Side) {
   const sides = { ...state.sides, [key]: { name: key, reason: "", ...state.sides[key], side, confirmed: true } };
   await set("mae:sides", sides);
   setState({ sides, days: dayStats(state.messages, (k) => sides[k]?.side) });
+}
+export async function setSourceGroup(id: string, isGroup: boolean) {
+  const sources = state.sources.map((s) => (s.id === id ? { ...s, isGroup } : s));
+  await set("mae:sources", sources);
+  setState({ sources });
 }
 export async function confirmAllSides() {
   const sides = Object.fromEntries(Object.entries(state.sides).map(([k, v]) => [k, { ...v, confirmed: true }]));

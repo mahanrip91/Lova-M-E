@@ -18,7 +18,8 @@ const kindLabel: Record<string, { label: string; icon: typeof ImageIcon }> = {
 
 export interface BubbleProps {
   m: Msg;
-  side?: "M" | "E" | undefined;
+  side?: "M" | "E" | "O" | undefined;
+  senderName?: string | undefined;
   sourceLabel?: string | undefined;
   reply?: Msg | null | undefined;
   replyMissing?: boolean | undefined;
@@ -29,19 +30,20 @@ export interface BubbleProps {
   animate?: boolean | undefined;
 }
 
-export const Bubble = memo(function Bubble({ m, side, sourceLabel, reply, replyMissing, bookmarked, onBookmark, onReplyClick, highlight, animate }: BubbleProps) {
+export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, reply, replyMissing, bookmarked, onBookmark, onReplyClick, highlight, animate }: BubbleProps) {
   const isM = side === "M";
+  const isO = side === "O";
   const k = m.kd !== "text" ? kindLabel[m.kd] : null;
   return (
-    <div className={cn("flex w-full px-3 py-1", isM ? "justify-start" : "justify-end", animate && "anim-rise")}>
+    <div className={cn("flex w-full px-3 py-1", isM || isO ? "justify-start" : "justify-end", animate && "anim-rise")}>
       <div
         className={cn(
           "group relative max-w-[82%] rounded-2xl border px-3.5 py-2 text-[15px] leading-7 transition-shadow",
-          isM ? "rounded-tr-md border-mahan/30 bg-mahan/10" : "rounded-tl-md border-elisa/30 bg-elisa/10",
-          !side && "border-border bg-muted",
+          isO || !side ? "rounded-tr-md border-border bg-muted/60" : isM ? "rounded-tr-md border-mahan/30 bg-mahan/10" : "rounded-tl-md border-elisa/30 bg-elisa/10",
           highlight && (isM ? "glow-mahan" : "glow-elisa"),
         )}
       >
+        {(isO || !side) && senderName && <div className="mb-0.5 truncate text-xs font-bold text-gold" dir="auto">{senderName}</div>}
         {(reply || replyMissing) && (
           <button
             type="button"

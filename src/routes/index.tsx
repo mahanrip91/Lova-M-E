@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Cake, Dices, Gift, Heart, Sparkles, Upload, History, PartyPopper, Plus } from "lucide-react";
 import { useStore, type EventKind } from "@/lib/mae/store";
 import { LiveCounter } from "@/components/mae/Counter";
-import { fa, fmtDate, fmtDateTime, fmtTime } from "@/lib/mae/time";
+import { dayKey, dayStartMs, fa, fmtDate, fmtDateTime, fmtTime } from "@/lib/mae/time";
 import { pickRandomSession, sliceRange } from "@/lib/mae/analysis";
 
 export const Route = createFileRoute("/")({
@@ -32,8 +32,12 @@ function Home() {
   const events = useStore((s) => s.events);
   const navigate = useNavigate();
 
-  const firstMsgs = status === "ready" ? sliceRange(messages, settings.firstFrom, settings.firstTo) : [];
-  const earliest = messages[0];
+  const sources = useStore((s) => s.sources);
+  const firstSrc = sources.find((x) => x.id === settings.firstSourceId) ?? null;
+  const midnight = dayStartMs(dayKey(settings.firstTo));
+  const firstMsgs = firstSrc ? sliceRange(messages, settings.firstFrom, settings.firstTo).filter((m) => m.s === firstSrc.id) : [];
+  const pre = firstMsgs.filter((m) => m.t < midnight).length;
+  const post = firstMsgs.length - pre;
   const began = sessions.length ? { from: sessions[0]!.from, to: sessions[Math.min(2, sessions.length - 1)]!.to } : null;
 
   const randomMemory = () => {
@@ -74,27 +78,40 @@ function Home() {
           <div className="flex items-center gap-2 text-xs text-gold"><Sparkles className="size-4" /> خاطره‌ی سنجاق‌شده</div>
           <h2 id="first-day" className="mt-2 font-display text-4xl">روز اول ما</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            شب {fmtDate(settings.startMs - 1)} تا بامداد {fmtDate(settings.startMs)} — یک گفتگوی پیوسته که از نیمه‌شب گذشت.
+            شب {fmtDate(midnight - 1)} تا بامداد {fmtDate(midnight)} — یک گفتگوی پیوسته‌ی گروهی که از نیمه‌شب گذشت.
           </p>
-          <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-2xl bg-mahan/10 p-3">
-              <div className="text-muted-foreground">پیش از ۰۰:۰۰</div>
-              <div className="mt-1 font-bold">{status === "ready" ? (firstMsgs.filter((m) => m.t < settings.startMs).length ? `${fa(firstMsgs.filter((m) => m.t < settings.startMs).length)} پیام` : "در آرشیو نیست") : "—"}</div>
+          {!firstSrc ? (
+            <div className="mt-4 rounded-2xl border border-gold/40 bg-gold/10 p-3 text-xs">
+              <p className="font-bold text-gold">آرشیو گروه لازم است</p>
+              <p className="mt-1 text-muted-foreground">
+                {settings.firstSourceId ? "آرشیو گروهی که انتخاب کرده بودی روی این دستگاه نیست." : "شب اول در یک گروه بود، نه در گفتگوهای خصوصی."} خروجی آن گروه را وارد کن و در «تنظیم خاطره‌ها» به‌عنوان منبع شب اول انتخابش کن. تا آن موقع هیچ پیامی پخش یا ساخته نمی‌شود.
+              </p>
+              <div className="mt-2 flex gap-2">
+                <Link to="/import" className="rounded-full bg-love px-3 py-1 text-primary-foreground">وارد کردن آرشیو گروه</Link>
+                <Link to="/memories" className="rounded-full border border-border px-3 py-1">انتخاب منبع</Link>
+              </div>
             </div>
-            <div className="rounded-2xl bg-elisa/10 p-3">
-              <div className="text-muted-foreground">پس از ۰۰:۰۰</div>
-              <div className="mt-1 font-bold">{status === "ready" ? `${fa(firstMsgs.filter((m) => m.t >= settings.startMs).length)} پیام` : "—"}</div>
-            </div>
-          </div>
-          {status === "ready" && earliest && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              قدیمی‌ترین پیام آرشیو: {fmtDateTime(earliest.t)}. بخش پیش از نیمه‌شب در فایل‌های خروجی نیامده و ساخته نمی‌شود.
-            </p>
+          ) : (
+            <>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-2xl bg-mahan/10 p-3">
+                  <div className="text-muted-foreground">پیش از ۰۰:۰۰</div>
+                  <div className="mt-1 font-bold">{pre ? `${fa(pre)} پیام` : "در این آرشیو نیست"}</div>
+                </div>
+                <div className="rounded-2xl bg-elisa/10 p-3">
+                  <div className="text-muted-foreground">پس از ۰۰:۰۰</div>
+                  <div className="mt-1 font-bold">{post ? `${fa(post)} پیام` : "در این آرشیو نیست"}</div>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                منبع: {firstSrc.label} · پوشش آرشیو: {fmtDateTime(firstSrc.from)} تا {fmtDateTime(firstSrc.to)}
+              </p>
+            </>
           )}
           <Link
             to="/replay"
-            search={{ from: settings.firstFrom, to: settings.firstTo, title: "روز اول ما", kind: "first" }}
-            disabled={status !== "ready"}
+            search={{ from: settings.firstFrom, to: settings.firstTo, title: "روز اول ما", kind: "first", src: firstSrc?.id }}
+            disabled={!firstSrc}
             className="mt-5 inline-flex items-center gap-2 rounded-full bg-love px-6 py-2.5 font-bold text-primary-foreground shadow-lg aria-disabled:opacity-40"
           >
             ▶ پخش خاطره
