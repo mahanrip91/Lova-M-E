@@ -82,7 +82,7 @@ describe("parsing & merge", () => {
     const p = parseRubika({ chat_guid: "g2", messages: [{ message_id: "1", time: "100", type: "FileInline", author_object_guid: "g1", file_inline: { type: "Image", file_name: "a.jpg", access_hash_rec: "SECRET", file_id: "9" } }] }, "f");
     expect(JSON.stringify(p.messages)).not.toContain("SECRET");
     expect(p.messages[0].kd).toBe("image");
-    expect(p.source.senders.find((s) => s.key === "R:g2")?.guess).toBe("E");
+    expect(p.source.senders.find((s) => s.key === "R:g1")?.guess).toBe("M");
   });
   it("maps senders by decorated name", () => {
     const p = parseTelegram([{ id: 1, date: "2026-01-01T00:00:00+00:00", sender_id: 5, sender_name: "𝓶𝓪𝓱𝓪𝓷", text: "x", reply_to: null }, { id: 2, date: "2026-01-01T00:00:01+00:00", sender_id: 6, sender_name: "꣄𖹭", text: "", reply_to: 1 }], "f", "T1", "t");
