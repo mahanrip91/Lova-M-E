@@ -52,20 +52,20 @@ describe("first conversation across midnight", () => {
   it("stays one session", () => {
     const s = sessionize(msgs);
     expect(s).toHaveLength(1);
-    expect(s[0].crossesMidnight).toBe(true);
+    expect(s[0]!.crossesMidnight).toBe(true);
   });
   it("splits visually into 2 calendar-date segments", () => {
     const segs = splitAtMidnight(base, base + 60 * 60000, msgs);
     expect(segs.map((x) => x.day)).toEqual(["2026-04-14", "2026-04-15"]);
-    expect(segs[0].messages).toHaveLength(2);
-    expect(segs[1].messages).toHaveLength(4);
+    expect(segs[0]!.messages).toHaveLength(2);
+    expect(segs[1]!.messages).toHaveLength(4);
   });
   it("missing pre-midnight part yields an empty segment, never invented messages", () => {
     const only = [mk(tehranToUtc(2026, 4, 15, 3, 28), 0), mk(tehranToUtc(2026, 4, 15, 3, 29), 1)];
     const from = DEFAULT_START - 3 * 3600000, to = DEFAULT_START + 6 * 3600000;
     const segs = splitAtMidnight(from, to, sliceRange(only, from, to));
-    expect(segs[0].messages).toHaveLength(0);
-    expect(segs[1].messages).toHaveLength(2);
+    expect(segs[0]!.messages).toHaveLength(0);
+    expect(segs[1]!.messages).toHaveLength(2);
   });
   it("respects a user-edited range", () => {
     expect(sliceRange(msgs, base + 15 * 60000, base + 35 * 60000).map((m) => m.o)).toEqual([2, 3]);
@@ -81,7 +81,7 @@ describe("parsing & merge", () => {
   it("drops sensitive Rubika file fields", () => {
     const p = parseRubika({ chat_guid: "g2", messages: [{ message_id: "1", time: "100", type: "FileInline", author_object_guid: "g1", file_inline: { type: "Image", file_name: "a.jpg", access_hash_rec: "SECRET", file_id: "9" } }] }, "f");
     expect(JSON.stringify(p.messages)).not.toContain("SECRET");
-    expect(p.messages[0].kd).toBe("image");
+    expect(p.messages[0]!.kd).toBe("image");
     expect(p.source.senders.find((s) => s.key === "R:g1")?.guess).toBe("M");
   });
   it("maps senders by decorated name", () => {
