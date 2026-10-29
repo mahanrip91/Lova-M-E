@@ -6,7 +6,7 @@ import { sliceRange, splitAtMidnight } from "@/lib/mae/analysis";
 import { dayKey, fa, fmtDate, fmtDateTime, fmtDuration, fmtTime } from "@/lib/mae/time";
 import { Bubble, DayDivider } from "@/components/mae/Bubble";
 
-interface Search { from: number; to: number; title?: string | undefined; kind?: string | undefined }
+interface Search { from: number; to: number; title?: string | undefined; kind?: string | undefined; src?: string | undefined }
 
 export const Route = createFileRoute("/replay")({
   validateSearch: (s: Record<string, unknown>): Search => ({
@@ -14,6 +14,7 @@ export const Route = createFileRoute("/replay")({
     to: Number(s["to"]) || 0,
     title: typeof s["title"] === "string" ? s["title"] : undefined,
     kind: typeof s["kind"] === "string" ? s["kind"] : undefined,
+    src: typeof s["src"] === "string" ? s["src"] : undefined,
   }),
   head: () => ({
     meta: [
@@ -30,13 +31,13 @@ const SPEEDS = [1, 2, 5, 20];
 const GAP_SKIP = 30 * 60000;
 
 function Replay() {
-  const { from, to, title, kind } = Route.useSearch();
+  const { from, to, title, kind, src } = Route.useSearch();
   const status = useStore((s) => s.status);
   const all = useStore((s) => s.messages);
   const sources = useStore((s) => s.sources);
   const sides = useStore((s) => s.sides);
   const startMs = useStore((s) => s.settings.startMs);
-  const msgs = useMemo(() => sliceRange(all, from, to), [all, from, to]);
+  const msgs = useMemo(() => { const r = sliceRange(all, from, to); return src ? r.filter((m) => m.s === src) : r; }, [all, from, to, src]);
   const segments = useMemo(() => splitAtMidnight(from, to, msgs), [from, to, msgs]);
   const [phase, setPhase] = useState<"intro" | "play">("intro");
   const [idx, setIdx] = useState(0);
@@ -70,12 +71,16 @@ function Replay() {
   const srcSet = [...new Set(msgs.map((m) => srcLabel[m.s]))];
   const multiDay = segments.length > 1;
   const preMidnightEmpty = kind === "first" && msgs.every((m) => m.t >= startMs);
+  const missingSource = !!src && !sources.some((x) => x.id === src);
 
   const windowStart = Math.max(0, idx - 120);
   const shown = msgs.slice(windowStart, idx);
   const skipNext = () => { let i = idx + 1; while (i < msgs.length && msgs[i]!.t - msgs[i - 1]!.t < GAP_SKIP) i++; setIdx(Math.min(msgs.length, i)); };
   const skipPrev = () => { let i = Math.max(0, idx - 2); while (i > 0 && msgs[i]!.t - msgs[i - 1]!.t < GAP_SKIP) i--; setIdx(i); };
 
+  if (missingSource) {
+    return <p className="p-8 text-center">آرشیو این خاطره هنوز روی این دستگاه نیست. <Link to="/import" className="text-primary underline">وارد کردن آرشیو</Link></p>;
+  }
   if (phase === "intro") {
     return (
       <main className="mx-auto flex min-h-[85vh] max-w-xl flex-col items-center justify-center px-6 text-center">
@@ -88,11 +93,11 @@ function Replay() {
           <li>{fa(msgs.length)} پیام بایگانی‌شده{first ? ` · از ${fmtTime(first.t)} تا ${fmtTime(msgs[msgs.length - 1]!.t)}` : ""}</li>
           {first && <li>مدت: {fmtDuration(msgs[msgs.length - 1]!.t - first.t)}</li>}
           {srcSet.length > 0 && <li>منبع: {srcSet.join("، ")}</li>}
-          {firstSide && <li>اولین پیام این بازه را {firstSide === "M" ? "ماهان" : "الیسا"} فرستاد</li>}
+          {firstSide && firstSide !== "O" && <li>اولین پیام این بازه را {firstSide === "M" ? "ماهان" : "الیسا"} فرستاد</li>}
         </ul>
         {preMidnightEmpty && (
           <p className="anim-rise mt-6 max-w-sm rounded-2xl border border-gold/40 bg-gold/10 p-3 text-xs" style={{ animationDelay: "1.6s" }}>
-            این گفتگو حوالی نیمه‌شب شروع شد، اما در فایل‌های خروجی هیچ پیامی پیش از ۰۰:۰۰ نیامده است. فقط پیام‌های واقعیِ موجود پخش می‌شوند.
+            در آرشیوِ انتخاب‌شده هیچ پیامی پیش از ۰۰:۰۰ نیست. فقط پیام‌های واقعیِ موجود پخش می‌شوند.
           </p>
         )}
         <button type="button" onClick={() => setPhase("play")} className="mt-8 rounded-full bg-love px-6 py-2.5 font-bold text-primary-foreground">شروع پخش</button>
@@ -145,7 +150,7 @@ function Replay() {
           <div key={m.u}>
             {newDay && (prev ? <DayDivider label={`🌙 از نیمه‌شب گذشت · ${fmtDate(m.t)}`} sub="همان گفتگو ادامه دارد" /> : <DayDivider label={fmtDate(m.t)} />)}
             {!newDay && gap > 10 * 60000 && <p className="my-2 text-center text-[11px] text-muted-foreground">⏳ {fmtDuration(gap)} بعد</p>}
-            <Bubble m={m} side={sides[m.k]?.side} sourceLabel={srcLabel[m.s]} reply={reply} replyMissing={!!m.r && !reply} animate />
+            <Bubble m={m} side={sides[m.k]?.side} senderName={sides[m.k]?.name} sourceLabel={srcLabel[m.s]} reply={reply} replyMissing={!!m.r && !reply} animate />
           </div>
         );
       })}
