@@ -38,13 +38,13 @@ export function splitAtMidnight(windowFrom: number, windowTo: number, msgs: Msg[
   return segs;
 }
 
-export interface DayStat { day: string; total: number; M: number; E: number; first: number; hours: number[] }
+export interface DayStat { day: string; total: number; M: number; E: number; O: number; first: number; hours: number[] }
 export function dayStats(msgs: Msg[], sideOf: (k: string) => Side | undefined): DayStat[] {
   const map = new Map<string, DayStat>();
   for (const m of msgs) {
     const day = dayKey(m.t);
     let d = map.get(day);
-    if (!d) { d = { day, total: 0, M: 0, E: 0, first: m.t, hours: new Array(24).fill(0) }; map.set(day, d); }
+    if (!d) { d = { day, total: 0, M: 0, E: 0, O: 0, first: m.t, hours: new Array(24).fill(0) }; map.set(day, d); }
     d.total++;
     const s = sideOf(m.k);
     if (s) d[s]++;
@@ -65,7 +65,7 @@ export function birthdayCandidates(msgs: Msg[], sideOf: (k: string) => Side | un
   for (const m of msgs) {
     if (!m.x || !BIRTHDAY_RE.test(m.x)) continue;
     const side = sideOf(m.k);
-    if (!side) continue;
+    if (!side || side === "O") continue;
     const day = dayKey(m.t);
     const key = day + side;
     const c = byDay.get(key) ?? { day, side, matches: 0, dayTotal: days.find((d) => d.day === day)?.total ?? 0, confidence: "low" as Confidence, firstMatch: m.t };
