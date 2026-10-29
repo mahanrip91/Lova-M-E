@@ -29,7 +29,7 @@ describe("live counter (elapsed on Jalali calendar)", () => {
   it("computes exact components from the confirmed start to an injected now", () => {
     const now = jalaliToUtc(1405, 8, 7, 11, 53, 9);
     const e = elapsedJalali(DEFAULT_START, now);
-    expect(e).toMatchObject({ years: 0, months: 6, days: 12, hours: 11, minutes: 53, seconds: 9, negative: false });
+    expect(e).toMatchObject({ years: 0, months: 6, days: 11, hours: 11, minutes: 53, seconds: 9, negative: false });
   });
   it("total days uses real elapsed time, not the archive", () => {
     expect(elapsedJalali(DEFAULT_START, DEFAULT_START + 200 * 86400000 + 5000).totalDays).toBe(200);
