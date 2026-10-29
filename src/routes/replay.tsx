@@ -112,7 +112,7 @@ function Replay() {
           {segments.map((s) => (
             <div key={s.day} className="relative bg-muted" style={{ flex: s["to"] - s["from"] + 1 }}>
               {s.messages.length > 0 && (
-                <div className="absolute inset-y-0 bg-love" style={{ insetInlineStart: `${((s.messages[0].t - s["from"]) / (s["to"] - s["from"] + 1)) * 100}%`, width: `${Math.max(1, ((s.messages[s.messages.length - 1]!.t - s.messages[0]!.t) / (s["to"] - s["from"] + 1)) * 100)}%` }} />
+                <div className="absolute inset-y-0 bg-love" style={{ insetInlineStart: `${((s.messages[0]!.t - s["from"]) / (s["to"] - s["from"] + 1)) * 100}%`, width: `${Math.max(1, ((s.messages[s.messages.length - 1]!.t - s.messages[0]!.t) / (s["to"] - s["from"] + 1)) * 100)}%` }} />
               )}
             </div>
           ))}
