@@ -16,7 +16,9 @@ import { Route as ImportRouteImport } from './routes/import'
 import { Route as MemoriesRouteImport } from './routes/memories'
 import { Route as ReplayRouteImport } from './routes/replay'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as ThemeRouteImport } from './routes/theme'
 import { Route as TimelineRouteImport } from './routes/timeline'
+import { Route as UnlockRouteImport } from './routes/unlock'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -53,9 +55,19 @@ const SearchRoute = SearchRouteImport.update({
   path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ThemeRoute = ThemeRouteImport.update({
+  id: '/theme',
+  path: '/theme',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TimelineRoute = TimelineRouteImport.update({
   id: '/timeline',
   path: '/timeline',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnlockRoute = UnlockRouteImport.update({
+  id: '/unlock',
+  path: '/unlock',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -67,7 +79,9 @@ export interface FileRoutesByFullPath {
   '/memories': typeof MemoriesRoute
   '/replay': typeof ReplayRoute
   '/search': typeof SearchRoute
+  '/theme': typeof ThemeRoute
   '/timeline': typeof TimelineRoute
+  '/unlock': typeof UnlockRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -77,7 +91,9 @@ export interface FileRoutesByTo {
   '/memories': typeof MemoriesRoute
   '/replay': typeof ReplayRoute
   '/search': typeof SearchRoute
+  '/theme': typeof ThemeRoute
   '/timeline': typeof TimelineRoute
+  '/unlock': typeof UnlockRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -88,7 +104,9 @@ export interface FileRoutesById {
   '/memories': typeof MemoriesRoute
   '/replay': typeof ReplayRoute
   '/search': typeof SearchRoute
+  '/theme': typeof ThemeRoute
   '/timeline': typeof TimelineRoute
+  '/unlock': typeof UnlockRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -100,7 +118,9 @@ export interface FileRouteTypes {
     | '/memories'
     | '/replay'
     | '/search'
+    | '/theme'
     | '/timeline'
+    | '/unlock'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -110,7 +130,9 @@ export interface FileRouteTypes {
     | '/memories'
     | '/replay'
     | '/search'
+    | '/theme'
     | '/timeline'
+    | '/unlock'
   id:
     | '__root__'
     | '/'
@@ -120,7 +142,9 @@ export interface FileRouteTypes {
     | '/memories'
     | '/replay'
     | '/search'
+    | '/theme'
     | '/timeline'
+    | '/unlock'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -131,7 +155,9 @@ export interface RootRouteChildren {
   MemoriesRoute: typeof MemoriesRoute
   ReplayRoute: typeof ReplayRoute
   SearchRoute: typeof SearchRoute
+  ThemeRoute: typeof ThemeRoute
   TimelineRoute: typeof TimelineRoute
+  UnlockRoute: typeof UnlockRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -185,11 +211,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/theme': {
+      id: '/theme'
+      path: '/theme'
+      fullPath: '/theme'
+      preLoaderRoute: typeof ThemeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/timeline': {
       id: '/timeline'
       path: '/timeline'
       fullPath: '/timeline'
       preLoaderRoute: typeof TimelineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/unlock': {
+      id: '/unlock'
+      path: '/unlock'
+      fullPath: '/unlock'
+      preLoaderRoute: typeof UnlockRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -203,7 +243,9 @@ const rootRouteChildren: RootRouteChildren = {
   MemoriesRoute: MemoriesRoute,
   ReplayRoute: ReplayRoute,
   SearchRoute: SearchRoute,
+  ThemeRoute: ThemeRoute,
   TimelineRoute: TimelineRoute,
+  UnlockRoute: UnlockRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
