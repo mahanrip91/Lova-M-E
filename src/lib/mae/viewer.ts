@@ -33,7 +33,7 @@ export function saveTheme(t: Theme) {
 /** Writes the viewer's colors to CSS variables. Call from useEffect only. */
 export function applyTheme(v: Viewer | null, t: Theme) {
   const r = document.documentElement;
-  r.dataset.viewer = v ?? "";
+  r.dataset["viewer"] = v ?? "";
   const me = v === "E" ? t.elisa : t.mahan;
   const other = v === "E" ? t.mahan : t.elisa;
   r.style.setProperty("--mahan", t.mahan);
