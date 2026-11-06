@@ -6,18 +6,43 @@ import { dayStats, sessionize, type DayStat, type Session } from "./analysis";
 import { jalaliToUtc } from "./time";
 
 export type EventKind = "bd-mahan" | "bd-elisa" | "mahan-celebrates" | "elisa-greets" | "custom";
-export interface MemoryEvent { id: string; kind: EventKind; title: string; from: number; to: number; origin: "manual" | "candidate"; confidence?: string }
+export interface MemoryEvent { id: string; kind: EventKind; title: string; from: number; to: number; origin: "manual" | "candidate" | "preset"; confidence?: string; /** true = the user confirmed it happened but it is not in the messages */ unavailable?: boolean }
 export interface SideEntry { side: Side; confirmed: boolean; name: string; reason: string }
-export interface Settings { startMs: number; firstFrom: number; firstTo: number; startConfirmed: boolean; /** source holding the first night (a group chat); null until the user picks it */ firstSourceId: string | null }
+export interface Settings { presetsApplied?: number; startMs: number; firstFrom: number; firstTo: number; startConfirmed: boolean; /** source holding the first night (a group chat); null until the user picks it */ firstSourceId: string | null }
 
-export const DEFAULT_START = jalaliToUtc(1405, 1, 26, 0, 0, 0); // user-confirmed: 26 Farvardin 1405, 00:00 Tehran
+export const DEFAULT_START = jalaliToUtc(1405, 1, 26, 3, 28, 0); // user-confirmed: 26 Farvardin 1405, 03:28 Tehran
+const OLD_DEFAULT_START = jalaliToUtc(1405, 1, 26, 0, 0, 0);
+const FIRST_MIDNIGHT = jalaliToUtc(1405, 1, 26, 0, 0, 0);
 export const defaultSettings = (): Settings => ({
   startMs: DEFAULT_START,
   startConfirmed: true,
   firstSourceId: null,
-  firstFrom: DEFAULT_START - 3 * 3600000,
-  firstTo: DEFAULT_START + 6 * 3600000,
+  firstFrom: FIRST_MIDNIGHT - 3 * 3600000,
+  firstTo: FIRST_MIDNIGHT + 6 * 3600000,
 });
+
+const HOUR = 3600000;
+const PRESETS_VERSION = 1;
+/** User-confirmed dates (birthdays: Mahan 10 Mehr, Elisa 8 Tir; Elisa's greeting 1405/07/10 00:33). */
+export function presetEvents(): MemoryEvent[] {
+  const bdM = jalaliToUtc(1405, 7, 10), bdE = jalaliToUtc(1405, 4, 8), greet = jalaliToUtc(1405, 7, 10, 0, 33);
+  return [
+    { id: "bd-mahan", kind: "bd-mahan", title: "تولد ماهان", from: bdM, to: bdM + 24 * HOUR - 1, origin: "preset" },
+    { id: "bd-elisa", kind: "bd-elisa", title: "تولد الیسا", from: bdE, to: bdE + 24 * HOUR - 1, origin: "preset" },
+    { id: "elisa-greets", kind: "elisa-greets", title: "الیسا تولد ماهان را تبریک گفت", from: greet - 10 * 60000, to: greet + 3 * HOUR, origin: "preset" },
+    { id: "mahan-celebrates", kind: "mahan-celebrates", title: "ماهان تولد الیسا را جشن گرفت", from: bdE, to: bdE + 24 * HOUR - 1, origin: "preset", unavailable: true },
+  ];
+}
+/** Adds missing preset events once (per preset version); never overwrites user edits. */
+export function applyPresets(events: MemoryEvent[], settings: Settings): { events: MemoryEvent[]; settings: Settings; changed: boolean } {
+  let changed = false;
+  let st = settings;
+  if (st.startMs === OLD_DEFAULT_START) { st = { ...st, startMs: DEFAULT_START }; changed = true; }
+  if ((st.presetsApplied ?? 0) >= PRESETS_VERSION) return { events, settings: st, changed };
+  const have = new Set(events.map((e) => e.kind));
+  const add = presetEvents().filter((p) => !have.has(p.kind));
+  return { events: [...events, ...add], settings: { ...st, presetsApplied: PRESETS_VERSION }, changed: true };
+}
 
 interface State {
   status: "loading" | "empty" | "ready";
@@ -59,9 +84,11 @@ export function initStore() {
       ]);
       const msgs = messages ?? [];
       const sd = (sides as Record<string, SideEntry>) ?? {};
+      const p = applyPresets(events ?? [], { ...defaultSettings(), ...(settings ?? {}) });
+      if (p.changed) await Promise.all([set("mae:events", p.events), set("mae:settings", p.settings)]);
       setState({
         status: msgs.length ? "ready" : "empty", messages: msgs, sources: sources ?? [], sides: sd,
-        bookmarks: bookmarks ?? [], events: events ?? [], settings: { ...defaultSettings(), ...(settings ?? {}) }, ...derive(msgs, sd),
+        bookmarks: bookmarks ?? [], events: p.events, settings: p.settings, ...derive(msgs, sd),
       });
     } catch {
       setState({ status: "empty" });
@@ -86,6 +113,12 @@ export async function importFiles(files: File[], onProgress?: (p: string) => voi
     onProgress?.(`در حال خواندن ${file.name}…`);
     try {
       const json = JSON.parse(await file.text());
+      if (json?.format === BUNDLE_FORMAT) {
+        await restoreBundle(json as Bundle);
+        reports.push({ fileName: file.name, ok: true, message: `بسته‌ی کامل: ${(json.messages?.length ?? 0).toLocaleString("fa-IR")} پیام و همه‌ی تنظیمات` });
+        sources = [...state.sources]; all = [...state.messages]; Object.assign(sides, state.sides);
+        continue;
+      }
       const fmt = detectFormat(json);
       if (!fmt) { reports.push({ fileName: file.name, ok: false, message: "قالب فایل شناخته نشد" }); continue; }
       const parsed = fmt === "rubika" ? parseRubika(json, file.name) : fmt === "tgdesktop" ? parseTelegramDesktop(json, file.name) : (() => {
@@ -147,6 +180,21 @@ export async function updateSettings(p: Partial<Settings>) {
   await set("mae:settings", settings);
   setState({ settings });
 }
+// ---- bundle: one file with everything, to hand over to the other person ----
+export const BUNDLE_FORMAT = "mae-bundle";
+export interface Bundle { format: typeof BUNDLE_FORMAT; v: 1; createdAt: number; messages: Msg[]; sources: Source[]; sides: Record<string, SideEntry>; events: MemoryEvent[]; settings: Settings; bookmarks: string[] }
+export function makeBundle(): Bundle {
+  const { messages, sources, sides, events, settings, bookmarks } = state;
+  return { format: BUNDLE_FORMAT, v: 1, createdAt: Date.now(), messages, sources, sides, events, settings, bookmarks };
+}
+async function restoreBundle(b: Bundle) {
+  if (!Array.isArray(b.messages) || !Array.isArray(b.sources)) throw new Error("بسته ناقص است");
+  const settings = { ...defaultSettings(), ...(b.settings ?? {}) };
+  const sides = b.sides ?? {};
+  await Promise.all([set("mae:messages", b.messages), set("mae:sources", b.sources), set("mae:sides", sides), set("mae:events", b.events ?? []), set("mae:settings", settings), set("mae:bookmarks", b.bookmarks ?? [])]);
+  setState({ messages: b.messages, sources: b.sources, sides, events: b.events ?? [], settings, bookmarks: b.bookmarks ?? [], status: b.messages.length ? "ready" : "empty", ...derive(b.messages, sides) });
+}
+
 export async function wipeAll() {
   await Promise.all(["mae:messages", "mae:sources", "mae:sides", "mae:bookmarks", "mae:events", "mae:settings"].map((k) => del(k)));
   setState({ status: "empty", messages: [], sources: [], sides: {}, bookmarks: [], events: [], settings: defaultSettings(), uidIndex: new Map(), sessions: [], days: [] });
