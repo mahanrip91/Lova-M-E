@@ -3,6 +3,7 @@ import { Forward, Image as ImageIcon, Mic, Music, Paperclip, Pencil, Smile, Star
 import type { Msg } from "@/lib/mae/parse";
 import { fmtTime } from "@/lib/mae/time";
 import { cn } from "@/lib/utils";
+import { useViewer } from "@/lib/mae/viewer";
 
 const kindLabel: Record<string, { label: string; icon: typeof ImageIcon }> = {
   image: { label: "عکس", icon: ImageIcon },
@@ -31,15 +32,17 @@ export interface BubbleProps {
 }
 
 export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, reply, replyMissing, bookmarked, onBookmark, onReplyClick, highlight, animate }: BubbleProps) {
+  const viewer = useViewer() ?? "M";
   const isM = side === "M";
   const isO = side === "O";
+  const mine = side === viewer;
   const k = m.kd !== "text" ? kindLabel[m.kd] : null;
   return (
-    <div className={cn("flex w-full px-3 py-1", isM || isO ? "justify-start" : "justify-end", animate && "anim-rise")}>
+    <div className={cn("flex w-full px-3 py-1", mine ? "justify-start" : "justify-end", animate && "anim-rise")}>
       <div
         className={cn(
           "group relative max-w-[82%] rounded-2xl border px-3.5 py-2 text-[15px] leading-7 transition-shadow",
-          isO || !side ? "rounded-tr-md border-border bg-muted/60" : isM ? "rounded-tr-md border-mahan/30 bg-mahan/10" : "rounded-tl-md border-elisa/30 bg-elisa/10",
+          isO || !side ? "rounded-tl-md border-border bg-muted/60" : cn(mine ? "rounded-tr-md" : "rounded-tl-md", isM ? "border-mahan/40 bg-mahan/15" : "border-elisa/40 bg-elisa/15"),
           highlight && (isM ? "glow-mahan" : "glow-elisa"),
         )}
       >

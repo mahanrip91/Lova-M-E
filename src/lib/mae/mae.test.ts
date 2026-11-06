@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dayKey, elapsedJalali, fmtTime, jalaliOf, jalaliToUtc, tehranToUtc, toGregorian, toJalali } from "./time";
 import { detectFormat, normalizeFa, parseRubika, parseTelegram, sortMessages, type Msg } from "./parse";
 import { birthdayCandidates, dayStats, pickRandomSession, sessionize, sliceRange, splitAtMidnight } from "./analysis";
-import { DEFAULT_START } from "./store";
+import { DEFAULT_START, applyPresets, defaultSettings, presetEvents } from "./store";
 
 const mk = (t: number, i: number, k = "a", x = "hi"): Msg => ({ u: `X:${i}`, s: "X", t, k, x, kd: "text", o: i });
 
@@ -15,8 +15,8 @@ describe("Jalali / Tehran time", () => {
     expect(dayKey(Date.parse("2026-04-14T20:29:59Z"))).toBe("2026-04-14");
     expect(dayKey(Date.parse("2026-04-14T20:30:00Z"))).toBe("2026-04-15");
   });
-  it("default counter start is 1405/01/26 00:00 Tehran", () => {
-    expect(jalaliOf(DEFAULT_START)).toMatchObject({ jy: 1405, jm: 1, jd: 26, h: 0, mi: 0, s: 0 });
+  it("default counter start is 1405/01/26 03:28 Tehran", () => {
+    expect(jalaliOf(DEFAULT_START)).toMatchObject({ jy: 1405, jm: 1, jd: 26, h: 3, mi: 28, s: 0 });
   });
   it("Unix-seconds and ISO inputs agree (earliest archived message is 03:28 Tehran)", () => {
     const unix = 1776211116 * 1000;
@@ -29,7 +29,7 @@ describe("live counter (elapsed on Jalali calendar)", () => {
   it("computes exact components from the confirmed start to an injected now", () => {
     const now = jalaliToUtc(1405, 8, 7, 11, 53, 9);
     const e = elapsedJalali(DEFAULT_START, now);
-    expect(e).toMatchObject({ years: 0, months: 6, days: 11, hours: 11, minutes: 53, seconds: 9, negative: false });
+    expect(e).toMatchObject({ years: 0, months: 6, days: 11, hours: 8, minutes: 25, seconds: 9, negative: false });
   });
   it("total days uses real elapsed time, not the archive", () => {
     expect(elapsedJalali(DEFAULT_START, DEFAULT_START + 200 * 86400000 + 5000).totalDays).toBe(200);
@@ -62,7 +62,7 @@ describe("first conversation across midnight", () => {
   });
   it("missing pre-midnight part yields an empty segment, never invented messages", () => {
     const only = [mk(tehranToUtc(2026, 4, 15, 3, 28), 0), mk(tehranToUtc(2026, 4, 15, 3, 29), 1)];
-    const from = DEFAULT_START - 3 * 3600000, to = DEFAULT_START + 6 * 3600000;
+    const { firstFrom: from, firstTo: to } = defaultSettings();
     const segs = splitAtMidnight(from, to, sliceRange(only, from, to));
     expect(segs[0]!.messages).toHaveLength(0);
     expect(segs[1]!.messages).toHaveLength(2);
@@ -143,5 +143,26 @@ describe("group archives", () => {
     expect(p.source.id).not.toBe("R");
     expect(p.source.isGroup).toBe(true);
     expect(p.source.senders.every((s) => s.guess === "O")).toBe(true);
+  });
+});
+
+describe("user-confirmed dates", () => {
+  const ev = (k: string) => presetEvents().find((e) => e.kind === k)!;
+  it("Mahan's birthday is 10 Mehr", () => expect(jalaliOf(ev("bd-mahan").from)).toMatchObject({ jm: 7, jd: 10, h: 0 }));
+  it("Elisa's birthday is 8 Tir", () => expect(jalaliOf(ev("bd-elisa").from)).toMatchObject({ jm: 4, jd: 8, h: 0 }));
+  it("Elisa's greeting window contains 1405/07/10 00:33", () => {
+    const g = jalaliToUtc(1405, 7, 10, 0, 33);
+    expect(ev("elisa-greets").from).toBeLessThanOrEqual(g);
+    expect(ev("elisa-greets").to).toBeGreaterThan(g);
+  });
+  it("Mahan celebrating Elisa's birthday is marked as not in the messages", () => expect(ev("mahan-celebrates").unavailable).toBe(true));
+  it("presets never overwrite a user's own event", () => {
+    const mine = { ...ev("bd-mahan"), from: 1, to: 2, origin: "manual" as const };
+    const r = applyPresets([mine], defaultSettings());
+    expect(r.events.filter((e) => e.kind === "bd-mahan")).toEqual([mine]);
+  });
+  it("migrates the old 00:00 start to 03:28", () => {
+    const r = applyPresets([], { ...defaultSettings(), startMs: jalaliToUtc(1405, 1, 26) });
+    expect(r.settings.startMs).toBe(DEFAULT_START);
   });
 });

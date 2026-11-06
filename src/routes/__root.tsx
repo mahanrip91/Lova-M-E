@@ -6,6 +6,8 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  redirect,
+  useLocation,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
@@ -14,6 +16,12 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { initStore } from "@/lib/mae/store";
 import { BottomNav } from "@/components/mae/Nav";
+import { getGate, type Viewer } from "@/lib/gate.functions";
+import { applyTheme, setViewer, useTheme, useViewer } from "@/lib/mae/viewer";
+
+// Client-side cache of the server gate result so navigation stays instant.
+let gateCache: { unlocked: boolean; viewer: Viewer | null } | null = null;
+export function resetGateCache() { gateCache = null; }
 
 function NotFoundComponent() {
   return (
@@ -78,6 +86,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Lalezar&family=Vazirmatn:wght@300;400;600;800&display=swap" },
     ],
   }),
+  beforeLoad: async ({ location }) => {
+    if (location.pathname === "/unlock") return { viewer: null as Viewer | null };
+    const g = (typeof window !== "undefined" && gateCache) || (await getGate());
+    if (typeof window !== "undefined") gateCache = g.unlocked ? g : null;
+    if (!g.unlocked || !g.viewer) throw redirect({ to: "/unlock" });
+    return { viewer: g.viewer as Viewer | null };
+  },
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -99,17 +114,22 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
-  const { queryClient } = Route.useRouteContext();
+  const { queryClient, viewer: ctxViewer } = Route.useRouteContext();
+  const path = useLocation({ select: (l) => l.pathname });
+  const viewer = useViewer();
+  const theme = useTheme();
+  useEffect(() => { setViewer(ctxViewer); }, [ctxViewer]);
+  useEffect(() => { applyTheme(viewer, theme); }, [viewer, theme]);
   useEffect(() => {
-    initStore();
-  }, []);
+    if (ctxViewer) initStore();
+  }, [ctxViewer]);
   return (
     <QueryClientProvider client={queryClient}>
       <div className="starfield" aria-hidden />
       <div className="relative z-10 min-h-screen pb-24">
         <Outlet />
       </div>
-      <BottomNav />
+      {path !== "/unlock" && <BottomNav />}
     </QueryClientProvider>
   );
 }
