@@ -197,5 +197,7 @@ async function restoreBundle(b: Bundle) {
 
 export async function wipeAll() {
   await Promise.all(["mae:messages", "mae:sources", "mae:sides", "mae:bookmarks", "mae:events", "mae:settings"].map((k) => del(k)));
-  setState({ status: "empty", messages: [], sources: [], sides: {}, bookmarks: [], events: [], settings: defaultSettings(), uidIndex: new Map(), sessions: [], days: [] });
+  const p = applyPresets([], defaultSettings());
+  await Promise.all([set("mae:events", p.events), set("mae:settings", p.settings)]);
+  setState({ status: "empty", messages: [], sources: [], sides: {}, bookmarks: [], events: p.events, settings: p.settings, uidIndex: new Map(), sessions: [], days: [] });
 }
