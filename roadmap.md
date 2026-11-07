@@ -11,7 +11,7 @@
 - [x] Search
 - [x] Installable (manifest + icons; offline caching not added yet)
 - [x] Tests + build check
-- [ ] Fix password entry and verify both viewers + session persistence
-- [ ] Complete local archive package download/import
-- [ ] Show unavailable celebration, exact greeting time, and theme navigation
-- [ ] Validate current app flows and synthetic tests
+- [x] Fix password entry and verify both viewers + session persistence
+- [x] Complete local archive package download/import
+- [x] Show unavailable celebration, exact greeting time, and theme navigation
+- [x] Validate current app flows and synthetic tests (40 tests; browser flows without page errors)
