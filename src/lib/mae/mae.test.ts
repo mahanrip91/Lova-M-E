@@ -115,6 +115,12 @@ describe("memories", () => {
 });
 
 describe("group archives", () => {
+  it("group message and reply ids cannot collide with private Rubika ids", () => {
+    const group = parseRubika({ chat_guid: "group-test", messages: [{ message_id: "1", time: "100", text: "synthetic", author_object_guid: "a", reply_to_message_id: "2" }] }, "group.json");
+    const privateChat = parseRubika({ chat_guid: "user-test", messages: [{ message_id: "1", time: "100", text: "synthetic", author_object_guid: "a" }] }, "private.json");
+    expect(group.messages[0]?.u).not.toBe(privateChat.messages[0]?.u);
+    expect(group.messages[0]?.r).toBe(`${group.source.id}:2`);
+  });
   it("parses Telegram Desktop group export using true UTC unix time, skipping service messages", async () => {
     const { parseTelegramDesktop, detectFormat: df } = await import("./parse");
     const json = { name: "G", type: "private_supergroup", id: 42, messages: [

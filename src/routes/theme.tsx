@@ -28,7 +28,7 @@ function ThemePage() {
   const lock = useServerFn(lockSite);
   const meKey = viewer === "E" ? "elisa" : "mahan";
   const otherKey = viewer === "E" ? "mahan" : "elisa";
-  const now = Date.now();
+  const now = 0; // Stable, synthetic preview time across SSR and hydration.
 
   const Row = ({ k, label }: { k: "mahan" | "elisa"; label: string }) => (
     <div className="glass rounded-3xl p-4">

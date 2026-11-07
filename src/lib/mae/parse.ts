@@ -67,8 +67,8 @@ export function parseRubika(json: any, fileName: string): ParsedFile {
     if (m.type === "Sticker") { kd = "sticker"; media = m.sticker?.emoji_character; }
     else if (m.type === "RubinoPost") kd = "post";
     else if (fi) { kd = rubikaKind[fi.type] ?? "file"; media = fi.file_name; }
-    const msg: Msg = { u: `R:${m.message_id}`, s: id, t: Number(m.time) * 1000, k, x: typeof m.text === "string" ? m.text : "", kd, o: i };
-    if (m.reply_to_message_id) msg.r = `R:${m.reply_to_message_id}`;
+    const msg: Msg = { u: `${id}:${m.message_id}`, s: id, t: Number(m.time) * 1000, k, x: typeof m.text === "string" ? m.text : "", kd, o: i };
+    if (m.reply_to_message_id) msg.r = `${id}:${m.reply_to_message_id}`;
     if (media) msg.m = String(media).slice(0, 80);
     if (m.is_edited) msg.e = 1;
     if (m.forwarded_from || m.forwarded_no_link) msg.f = 1;
