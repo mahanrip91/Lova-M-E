@@ -2,7 +2,7 @@
 - [x] Design system (cosmic/neon, RTL, Vazirmatn)
 - [x] On-device import (3 formats), sensitive fields dropped, side confirmation
 - [x] Tehran/Jalali time utils + tests
-- [x] Home: pinned «روز اول ما», live counter (default 1405/01/26 00:00 Tehran, editable)
+- [x] Home: pinned «روز اول ما», live counter (default 1405/01/26 03:28 Tehran, editable)
 - [x] Unified timeline (virtualized), bookmarks, latest-archive jump
 - [x] Replay player (play/pause/speed/skip, midnight split, gap notice)
 - [x] Random memory, how-it-began
@@ -11,3 +11,7 @@
 - [x] Search
 - [x] Installable (manifest + icons; offline caching not added yet)
 - [x] Tests + build check
+- [x] Fix password entry and verify both viewers + session persistence
+- [x] Complete local archive package download/import
+- [x] Show unavailable celebration, exact greeting time, and theme navigation
+- [x] Validate current app flows and synthetic tests (40 tests; browser flows without page errors)

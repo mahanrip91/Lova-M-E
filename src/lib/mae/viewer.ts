@@ -17,8 +17,8 @@ export function setViewer(v: Viewer | null) {
   theme = loadTheme(v);
   emit();
 }
-export const useViewer = () => useSyncExternalStore(sub, () => viewer, () => viewer);
-export const useTheme = () => useSyncExternalStore(sub, () => theme, () => theme);
+export const useViewer = () => useSyncExternalStore(sub, () => viewer, () => null);
+export const useTheme = () => useSyncExternalStore(sub, () => theme, () => DEFAULT_THEME);
 
 function loadTheme(v: Viewer | null): Theme {
   if (!v || typeof window === "undefined") return DEFAULT_THEME;

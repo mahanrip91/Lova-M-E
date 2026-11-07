@@ -10,6 +10,8 @@ import type { DayStat } from "@/lib/mae/analysis";
 export const Route = createFileRoute("/explore")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · سفر در زمان" },
       { name: "description", content: "کاوش کیهانی روزها و ماه‌ها با تقویم شمسی" },
       { property: "og:title", content: "M AND E · سفر در زمان" },

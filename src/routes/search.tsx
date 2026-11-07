@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/mae/Nav";
 export const Route = createFileRoute("/search")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · جستجو" },
       { name: "description", content: "جستجوی فارسی در همه‌ی گفتگوها" },
       { property: "og:title", content: "M AND E · جستجو" },

@@ -114,6 +114,7 @@ export async function importFiles(files: File[], onProgress?: (p: string) => voi
     try {
       const json = JSON.parse(await file.text());
       if (json?.format === BUNDLE_FORMAT) {
+        if (files.length !== 1) throw new Error("بستهٔ کامل را به‌تنهایی انتخاب کن، نه همراه فایل‌های دیگر");
         await restoreBundle(json as Bundle);
         reports.push({ fileName: file.name, ok: true, message: `بسته‌ی کامل: ${(json.messages?.length ?? 0).toLocaleString("fa-IR")} پیام و همه‌ی تنظیمات` });
         sources = [...state.sources]; all = [...state.messages]; Object.assign(sides, state.sides);
@@ -187,12 +188,29 @@ export function makeBundle(): Bundle {
   const { messages, sources, sides, events, settings, bookmarks } = state;
   return { format: BUNDLE_FORMAT, v: 1, createdAt: Date.now(), messages, sources, sides, events, settings, bookmarks };
 }
+export function validateBundle(b: Bundle): void {
+  if (b.v !== 1 || !Array.isArray(b.messages) || !Array.isArray(b.sources) || !Array.isArray(b.events) || !Array.isArray(b.bookmarks) || !b.settings || !b.sides) throw new Error("بسته ناقص یا نسخهٔ آن ناسازگار است");
+  const ids = new Set(b.sources.map((s) => s.id));
+  const uids = new Set<string>();
+  for (const m of b.messages) {
+    if (!m || typeof m.u !== "string" || uids.has(m.u) || !ids.has(m.s) || !Number.isFinite(m.t) || typeof m.x !== "string" || typeof m.k !== "string" || !Number.isFinite(m.o)) throw new Error("پیام‌های بسته معتبر نیستند");
+    uids.add(m.u);
+  }
+  for (const s of b.sources) {
+    if (!s || typeof s.id !== "string" || typeof s.label !== "string" || !Array.isArray(s.senders) || !Number.isFinite(s.from) || !Number.isFinite(s.to)) throw new Error("منابع بسته معتبر نیستند");
+  }
+  for (const e of b.events) {
+    if (!e || typeof e.id !== "string" || typeof e.title !== "string" || !Number.isFinite(e.from) || !Number.isFinite(e.to) || e.to < e.from) throw new Error("تاریخ‌های بسته معتبر نیستند");
+  }
+  if (![b.settings.startMs, b.settings.firstFrom, b.settings.firstTo].every(Number.isFinite) || b.settings.firstTo < b.settings.firstFrom) throw new Error("تنظیمات تاریخ بسته معتبر نیستند");
+}
 async function restoreBundle(b: Bundle) {
-  if (!Array.isArray(b.messages) || !Array.isArray(b.sources)) throw new Error("بسته ناقص است");
+  validateBundle(b);
   const settings = { ...defaultSettings(), ...(b.settings ?? {}) };
   const sides = b.sides ?? {};
-  await Promise.all([set("mae:messages", b.messages), set("mae:sources", b.sources), set("mae:sides", sides), set("mae:events", b.events ?? []), set("mae:settings", settings), set("mae:bookmarks", b.bookmarks ?? [])]);
-  setState({ messages: b.messages, sources: b.sources, sides, events: b.events ?? [], settings, bookmarks: b.bookmarks ?? [], status: b.messages.length ? "ready" : "empty", ...derive(b.messages, sides) });
+  const messages = sortMessages(b.messages, b.sources.map((s) => s.id));
+  await Promise.all([set("mae:messages", messages), set("mae:sources", b.sources), set("mae:sides", sides), set("mae:events", b.events), set("mae:settings", settings), set("mae:bookmarks", b.bookmarks)]);
+  setState({ messages, sources: b.sources, sides, events: b.events, settings, bookmarks: b.bookmarks, status: messages.length ? "ready" : "empty", ...derive(messages, sides) });
 }
 
 export async function wipeAll() {

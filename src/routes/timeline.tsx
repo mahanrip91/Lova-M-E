@@ -16,6 +16,8 @@ export const Route = createFileRoute("/timeline")({
   }),
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · تایم‌لاین یکپارچه" },
       { name: "description", content: "همه‌ی گفتگوها از همه‌ی منابع در یک جریان زمانی" },
       { property: "og:title", content: "M AND E · تایم‌لاین" },

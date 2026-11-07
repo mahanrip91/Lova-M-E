@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/mae/Nav";
 export const Route = createFileRoute("/bookmarks")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · نشان‌ها" },
       { name: "description", content: "پیام‌های نشان‌شده" },
       { property: "og:title", content: "M AND E · نشان‌ها" },

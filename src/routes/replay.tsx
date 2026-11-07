@@ -18,6 +18,8 @@ export const Route = createFileRoute("/replay")({
   }),
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · پخش خاطره" },
       { name: "description", content: "بازپخش سینمایی یک خاطره از آرشیو گفتگوها" },
       { property: "og:title", content: "M AND E · پخش خاطره" },
@@ -36,7 +38,7 @@ function Replay() {
   const all = useStore((s) => s.messages);
   const sources = useStore((s) => s.sources);
   const sides = useStore((s) => s.sides);
-  const msgs = useMemo(() => { const r = sliceRange(all, from, to); return src ? r.filter((m) => m.s === src) : r; }, [all, from, to, src]);
+  const msgs = useMemo(() => { if (kind === "first" && !src) return []; const r = sliceRange(all, from, to); return src ? r.filter((m) => m.s === src) : r; }, [all, from, to, src, kind]);
   const segments = useMemo(() => splitAtMidnight(from, to, msgs), [from, to, msgs]);
   const [phase, setPhase] = useState<"intro" | "play">("intro");
   const [idx, setIdx] = useState(0);
@@ -71,7 +73,7 @@ function Replay() {
   const multiDay = segments.length > 1;
   const midnight = dayStartMs(dayKey(to));
   const preMidnightEmpty = kind === "first" && msgs.every((m) => m.t >= midnight);
-  const missingSource = !!src && !sources.some((x) => x.id === src);
+  const missingSource = (kind === "first" && !src) || (!!src && !sources.some((x) => x.id === src));
 
   const windowStart = Math.max(0, idx - 120);
   const shown = msgs.slice(windowStart, idx);

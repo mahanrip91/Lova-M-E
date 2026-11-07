@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dayKey, elapsedJalali, fmtTime, jalaliOf, jalaliToUtc, tehranToUtc, toGregorian, toJalali } from "./time";
 import { detectFormat, normalizeFa, parseRubika, parseTelegram, sortMessages, type Msg } from "./parse";
 import { birthdayCandidates, dayStats, pickRandomSession, sessionize, sliceRange, splitAtMidnight } from "./analysis";
-import { DEFAULT_START, applyPresets, defaultSettings, presetEvents } from "./store";
+import { DEFAULT_START, applyPresets, defaultSettings, presetEvents, makeBundle, validateBundle } from "./store";
 
 const mk = (t: number, i: number, k = "a", x = "hi"): Msg => ({ u: `X:${i}`, s: "X", t, k, x, kd: "text", o: i });
 
@@ -115,6 +115,12 @@ describe("memories", () => {
 });
 
 describe("group archives", () => {
+  it("group message and reply ids cannot collide with private Rubika ids", () => {
+    const group = parseRubika({ chat_guid: "group-test", messages: [{ message_id: "1", time: "100", text: "synthetic", author_object_guid: "a", reply_to_message_id: "2" }] }, "group.json");
+    const privateChat = parseRubika({ chat_guid: "user-test", messages: [{ message_id: "1", time: "100", text: "synthetic", author_object_guid: "a" }] }, "private.json");
+    expect(group.messages[0]?.u).not.toBe(privateChat.messages[0]?.u);
+    expect(group.messages[0]?.r).toBe(`${group.source.id}:2`);
+  });
   it("parses Telegram Desktop group export using true UTC unix time, skipping service messages", async () => {
     const { parseTelegramDesktop, detectFormat: df } = await import("./parse");
     const json = { name: "G", type: "private_supergroup", id: 42, messages: [
@@ -164,5 +170,23 @@ describe("user-confirmed dates", () => {
   it("migrates the old 00:00 start to 03:28", () => {
     const r = applyPresets([], { ...defaultSettings(), startMs: jalaliToUtc(1405, 1, 26) });
     expect(r.settings.startMs).toBe(DEFAULT_START);
+  });
+});
+
+describe("private archive bundles", () => {
+  it("round-trips an empty bundle without credentials", () => {
+    const b = JSON.parse(JSON.stringify(makeBundle()));
+    expect(() => validateBundle(b)).not.toThrow();
+    expect(Object.keys(b).sort()).toEqual(["format", "v", "createdAt", "messages", "sources", "sides", "events", "settings", "bookmarks"].sort());
+  });
+  it("rejects invalid timestamps before restoration", () => {
+    const b = makeBundle();
+    b.messages = [{ ...mk(NaN, 1), s: "missing" }];
+    expect(() => validateBundle(b)).toThrow();
+  });
+  it("rejects reversed date ranges", () => {
+    const b = makeBundle();
+    b.settings = { ...b.settings, firstFrom: 20, firstTo: 10 };
+    expect(() => validateBundle(b)).toThrow();
   });
 });

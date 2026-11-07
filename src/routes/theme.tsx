@@ -10,6 +10,8 @@ import { resetGateCache } from "./__root";
 export const Route = createFileRoute("/theme")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · تم و رنگ‌ها" },
       { name: "description", content: "شخصی‌سازی رنگ‌های برنامه" },
       { property: "og:title", content: "M AND E · تم و رنگ‌ها" },
@@ -28,7 +30,7 @@ function ThemePage() {
   const lock = useServerFn(lockSite);
   const meKey = viewer === "E" ? "elisa" : "mahan";
   const otherKey = viewer === "E" ? "mahan" : "elisa";
-  const now = Date.now();
+  const now = 0; // Stable, synthetic preview time across SSR and hydration.
 
   const Row = ({ k, label }: { k: "mahan" | "elisa"; label: string }) => (
     <div className="glass rounded-3xl p-4">

@@ -10,6 +10,8 @@ import { JalaliDateTimeInput } from "@/components/mae/JalaliInput";
 export const Route = createFileRoute("/memories")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · تنظیم خاطره‌ها" },
       { name: "description", content: "تأیید تاریخ‌های مهم، تولدها و خاطره‌های شخصی" },
       { property: "og:title", content: "M AND E · تنظیم خاطره‌ها" },
@@ -94,9 +96,11 @@ function Memories() {
                 <h3 className="font-bold">{slot.title}</h3>
                 {ev ? <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[11px] text-primary">تأییدشده: {fmtDate(ev.from)}</span> : <span className="rounded-full border border-gold/40 px-2 py-0.5 text-[11px] text-gold">نیاز به تنظیم</span>}
               </div>
+              {ev?.unavailable && <p className="mt-2 text-sm text-gold">در پیام‌ها موجود نیست</p>}
+              {ev?.kind === "elisa-greets" && <p className="mt-2 text-xs text-muted-foreground">زمان تبریک تأییدشده: ۱۰ مهر ۱۴۰۵، ساعت ۰۰:۳۳؛ متن فقط از آرشیو خوانده می‌شود.</p>}
               {ev && (
                 <div className="mt-2 flex gap-2">
-                  <Link to="/replay" search={{ from: ev.from, to: ev.to, title: slot.title, kind: slot.kind }} className="rounded-full bg-love px-3 py-1 text-xs text-primary-foreground">پخش</Link>
+                  {!ev.unavailable && <Link to="/replay" search={{ from: ev.from, to: ev.to, title: slot.title, kind: slot.kind }} className="rounded-full bg-love px-3 py-1 text-xs text-primary-foreground">پخش</Link>}
                   <button type="button" onClick={() => removeEvent(ev.id)} className="rounded-full border border-border px-3 py-1 text-xs">حذف تأیید</button>
                 </div>
               )}
