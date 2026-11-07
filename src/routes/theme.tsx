@@ -10,6 +10,8 @@ import { resetGateCache } from "./__root";
 export const Route = createFileRoute("/theme")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · تم و رنگ‌ها" },
       { name: "description", content: "شخصی‌سازی رنگ‌های برنامه" },
       { property: "og:title", content: "M AND E · تم و رنگ‌ها" },

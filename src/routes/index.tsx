@@ -8,6 +8,8 @@ import { pickRandomSession, sliceRange } from "@/lib/mae/analysis";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · خانه‌ی خاطره‌ها" },
       { name: "description", content: "دفتر خاطرات کیهانی ماهان و الیسا: روز اول ما، شمارنده‌ی زنده و سفر در زمان." },
       { property: "og:title", content: "M AND E" },

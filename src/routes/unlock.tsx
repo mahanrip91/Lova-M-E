@@ -10,6 +10,8 @@ import { resetGateCache } from "./__root";
 export const Route = createFileRoute("/unlock")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · ورود" },
       { name: "description", content: "ورود به دفتر خاطرات ماهان و الیسا" },
       { property: "og:title", content: "M AND E · ورود" },

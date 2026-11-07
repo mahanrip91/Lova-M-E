@@ -18,6 +18,8 @@ export const Route = createFileRoute("/replay")({
   }),
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · پخش خاطره" },
       { name: "description", content: "بازپخش سینمایی یک خاطره از آرشیو گفتگوها" },
       { property: "og:title", content: "M AND E · پخش خاطره" },

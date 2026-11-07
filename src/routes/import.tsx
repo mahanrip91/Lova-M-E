@@ -9,6 +9,8 @@ import { PageHeader } from "@/components/mae/Nav";
 export const Route = createFileRoute("/import")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · وارد کردن آرشیو" },
       { name: "description", content: "وارد کردن خروجی گفتگوها، فقط روی همین دستگاه" },
       { property: "og:title", content: "M AND E · وارد کردن آرشیو" },

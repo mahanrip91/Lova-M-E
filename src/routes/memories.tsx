@@ -10,6 +10,8 @@ import { JalaliDateTimeInput } from "@/components/mae/JalaliInput";
 export const Route = createFileRoute("/memories")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "M AND E · تنظیم خاطره‌ها" },
       { name: "description", content: "تأیید تاریخ‌های مهم، تولدها و خاطره‌های شخصی" },
       { property: "og:title", content: "M AND E · تنظیم خاطره‌ها" },
