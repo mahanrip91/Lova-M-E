@@ -14,3 +14,5 @@
 - Pure date/session logic lives in `src/lib/mae/{time,analysis,parse}.ts` with tests in `mae.test.ts`; UI never re-implements it. Why: Tehran/Jalali correctness is tested in one place.
 - Tehran time uses a fixed UTC+3:30 offset (Iran dropped DST in 2022). Why: deterministic day boundaries.
 - Tests use synthetic data only, never the real archive.
+- Shared-password validation stays server-only with timing-safe digests; encrypted sessions retain viewer preference, not a per-user identity. Why: no password or false account isolation ships to the browser.
+- Archive handoff uses a downloaded on-device bundle, never embedded defaults. Why: the published app must not contain private chats.

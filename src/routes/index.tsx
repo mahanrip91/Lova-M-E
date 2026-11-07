@@ -142,9 +142,9 @@ function Home() {
               key={b.kind}
               title={b.title}
               icon={b.icon}
-              sub={ev ? fmtDate(ev.from) : "هنوز تاریخ تأیید نشده"}
-              badge={ev ? "تأییدشده توسط شما" : "نیاز به تنظیم"}
-              to={ev ? { from: ev.from, to: ev.to, title: b.title, kind: b.kind } : undefined}
+              sub={ev?.unavailable ? "در پیام‌ها موجود نیست" : ev ? (b.kind === "elisa-greets" ? "۱۰ مهر ۱۴۰۵ · ساعت ۰۰:۳۳" : fmtDate(ev.from)) : "هنوز تاریخ تأیید نشده"}
+              badge={ev?.unavailable ? "رویداد ثبت‌شده بدون پیام" : ev ? "تأییدشده توسط شما" : "نیاز به تنظیم"}
+              to={ev && !ev.unavailable ? { from: ev.from, to: ev.to, title: b.title, kind: b.kind } : undefined}
               setup={!ev}
             />
           );
@@ -164,6 +164,7 @@ function Home() {
           </Link>
         )}
         <Link to="/import" className="glass rounded-full px-4 py-2">مدیریت آرشیو و فرستنده‌ها</Link>
+        <Link to="/theme" className="glass rounded-full px-4 py-2">تم و رنگ‌ها · تعویض کاربر</Link>
       </div>
       <p className="mt-6 pb-4 text-center text-[11px] text-muted-foreground">همه‌ی پیام‌ها فقط روی همین دستگاه می‌مانند و جایی ارسال نمی‌شوند.</p>
     </main>

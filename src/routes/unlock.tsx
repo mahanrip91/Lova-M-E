@@ -1,7 +1,8 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { ArrowRight, Heart, Lock } from "lucide-react";
+import { ArrowRight, Heart, Lock, Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { unlockSite } from "@/lib/gate.functions";
 import { DEFAULT_THEME, setViewer, type Viewer } from "@/lib/mae/viewer";
 import { resetGateCache } from "./__root";
@@ -24,12 +25,16 @@ function Unlock() {
   const [who, setWho] = useState<Viewer | null>(null);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
+  const [visible, setVisible] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!who) return;
     const password = String(new FormData(e.currentTarget).get("password") ?? "");
     setBusy(true);
+    setError(false);
+    setConnectionError(false);
     try {
       const { ok } = await unlock({ data: { password, viewer: who } });
       if (!ok) { setError(true); return; }
@@ -37,7 +42,8 @@ function Unlock() {
       setViewer(who);
       await router.invalidate();
       await router.navigate({ to: "/" });
-    } finally { setBusy(false); }
+    } catch { setConnectionError(true); }
+    finally { setBusy(false); }
   }
 
   const color = who === "E" ? DEFAULT_THEME.elisa : DEFAULT_THEME.mahan;
@@ -69,9 +75,15 @@ function Unlock() {
           <Lock className="mx-auto mt-2 size-7" style={{ color }} />
           <p className="mt-2 font-bold">سلام {who === "E" ? "الیسا" : "ماهان"} 💫</p>
           <label htmlFor="pw" className="mt-4 block text-sm text-muted-foreground">رمز رو وارد کن</label>
-          <input id="pw" name="password" type="password" inputMode="numeric" autoComplete="current-password" autoFocus dir="ltr"
-            className="mt-2 w-full rounded-xl border border-input bg-background/60 px-3 py-2.5 text-center tracking-widest" />
+          <div className="relative mt-2">
+            <input id="pw" name="password" type={visible ? "text" : "password"} inputMode="text" autoComplete="current-password" autoFocus dir="ltr" required onChange={() => { setError(false); setConnectionError(false); }}
+              className="w-full rounded-xl border border-input bg-background/60 px-12 py-2.5 text-center tracking-widest" />
+            <Button type="button" variant="ghost" size="icon" onClick={() => setVisible((v) => !v)} aria-label={visible ? "پنهان کردن رمز" : "نمایش رمز"} title={visible ? "پنهان کردن رمز" : "نمایش رمز"} className="absolute inset-y-0 left-1 my-auto">
+              {visible ? <EyeOff /> : <Eye />}
+            </Button>
+          </div>
           {error && <p className="mt-2 text-sm text-destructive" role="alert">رمز درست نیست</p>}
+          {connectionError && <p className="mt-2 text-sm text-destructive" role="alert">ارتباط برقرار نشد؛ دوباره امتحان کن.</p>}
           <button type="submit" disabled={busy} className="mt-4 w-full rounded-full py-2.5 font-bold text-primary-foreground disabled:opacity-50" style={{ background: color }}>
             {busy ? "…" : "ورود"}
           </button>
