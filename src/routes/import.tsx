@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { ShieldCheck, Trash2, Upload, CheckCircle2, AlertTriangle } from "lucide-react";
-import { confirmAllSides, importFiles, setSide, setSourceGroup, useStore, wipeAll, type ImportReport } from "@/lib/mae/store";
+import { ShieldCheck, Trash2, Upload, Download, CheckCircle2, AlertTriangle } from "lucide-react";
+import { confirmAllSides, importFiles, makeBundle, setSide, setSourceGroup, useStore, wipeAll, type ImportReport } from "@/lib/mae/store";
+import { Button } from "@/components/ui/button";
 import { fa, fmtDate } from "@/lib/mae/time";
 import { PageHeader } from "@/components/mae/Nav";
 
@@ -23,11 +24,23 @@ function ImportPage() {
   const total = useStore((s) => s.messages.length);
   const [busy, setBusy] = useState<string | null>(null);
   const [reports, setReports] = useState<ImportReport[]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const onFiles = async (files: FileList | null) => {
     if (!files?.length) return;
     setBusy("شروع…");
-    try { setReports(await importFiles([...files], setBusy)); } finally { setBusy(null); }
+    setFileError(null);
+    try { setReports(await importFiles([...files], setBusy)); }
+    catch { setFileError("فایل‌ها ذخیره نشدند؛ فضای دستگاه و دسترسی مرورگر را بررسی کن."); }
+    finally { setBusy(null); }
+  };
+  const downloadBundle = () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(makeBundle())], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "M-AND-E-private-bundle.json";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const unconfirmed = Object.values(sides).some((s) => !s.confirmed);
 
@@ -43,8 +56,9 @@ function ImportPage() {
         <Upload className="size-8 text-accent" />
         <span className="font-bold">انتخاب فایل‌های JSON</span>
         <span className="text-xs text-muted-foreground">گفتگوهای خصوصی و آرشیو گروهی (روبیکا، تلگرام ساده یا result.json تلگرام دسکتاپ). می‌توانی چند فایل را با هم انتخاب کنی. وارد کردن دوباره، همان منبع را جایگزین می‌کند.</span>
-        <input type="file" accept=".json,application/json" multiple className="sr-only" disabled={!!busy} onChange={(e) => onFiles(e.target.files)} />
+        <input type="file" accept=".json,application/json" multiple className="sr-only" disabled={!!busy} onChange={(e) => { void onFiles(e.target.files); e.target.value = ""; }} />
       </label>
+      {fileError && <p className="mt-3 text-sm text-destructive" role="alert">{fileError}</p>}
       {busy && <p className="mt-3 text-center text-sm text-primary" role="status">{busy}</p>}
       {reports.map((r) => (
         <p key={r.fileName} className="mt-2 flex items-center gap-2 text-sm">
@@ -52,6 +66,13 @@ function ImportPage() {
           <span className="truncate" dir="auto">{r.fileName}</span>: {r.message}
         </p>
       ))}
+
+      <section className="mt-8 border-y border-border py-5">
+        <h2 className="font-display text-2xl">بستهٔ خصوصی برای الیسا</h2>
+        <p className="mt-2 text-sm text-muted-foreground">پیام‌ها، منابع، تاریخ‌ها، نشان‌ها و تنظیم خاطره‌ها در یک فایل قرار می‌گیرند. این فایل خصوصی را فقط برای الیسا بفرست؛ بعد از ورود، با «انتخاب فایل‌های JSON» همین‌جا بازش کند. بسته، آرشیو و تنظیمات موجود آن دستگاه را جایگزین می‌کند.</p>
+        <Button type="button" disabled={!total || !!busy} onClick={downloadBundle} className="mt-3"><Download /> دریافت بستهٔ خصوصی</Button>
+        <p className="mt-2 text-xs text-gold">بسته رمزگذاری نشده است؛ آن را عمومی نکن. رمز ورود و رنگ‌های شخصی داخل بسته نیستند.</p>
+      </section>
 
       {sources.length > 0 && (
         <>

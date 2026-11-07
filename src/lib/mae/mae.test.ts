@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dayKey, elapsedJalali, fmtTime, jalaliOf, jalaliToUtc, tehranToUtc, toGregorian, toJalali } from "./time";
 import { detectFormat, normalizeFa, parseRubika, parseTelegram, sortMessages, type Msg } from "./parse";
 import { birthdayCandidates, dayStats, pickRandomSession, sessionize, sliceRange, splitAtMidnight } from "./analysis";
-import { DEFAULT_START, applyPresets, defaultSettings, presetEvents } from "./store";
+import { DEFAULT_START, applyPresets, defaultSettings, presetEvents, makeBundle, validateBundle } from "./store";
 
 const mk = (t: number, i: number, k = "a", x = "hi"): Msg => ({ u: `X:${i}`, s: "X", t, k, x, kd: "text", o: i });
 
@@ -164,5 +164,23 @@ describe("user-confirmed dates", () => {
   it("migrates the old 00:00 start to 03:28", () => {
     const r = applyPresets([], { ...defaultSettings(), startMs: jalaliToUtc(1405, 1, 26) });
     expect(r.settings.startMs).toBe(DEFAULT_START);
+  });
+});
+
+describe("private archive bundles", () => {
+  it("round-trips an empty bundle without credentials", () => {
+    const b = JSON.parse(JSON.stringify(makeBundle()));
+    expect(() => validateBundle(b)).not.toThrow();
+    expect(Object.keys(b).sort()).toEqual(["format", "v", "createdAt", "messages", "sources", "sides", "events", "settings", "bookmarks"].sort());
+  });
+  it("rejects invalid timestamps before restoration", () => {
+    const b = makeBundle();
+    b.messages = [{ ...mk(NaN, 1), s: "missing" }];
+    expect(() => validateBundle(b)).toThrow();
+  });
+  it("rejects reversed date ranges", () => {
+    const b = makeBundle();
+    b.settings = { ...b.settings, firstFrom: 20, firstTo: 10 };
+    expect(() => validateBundle(b)).toThrow();
   });
 });
