@@ -1,4 +1,7 @@
 # M AND E roadmap
+- [ ] Add isolated live chat API, account login, and realtime messaging without changing archive storage or remote schema
+- [ ] Preserve legacy gate on memories and bypass it only on login/chat
+- [ ] Test chat rules, routing, and browser flows; report any external account verification blocker
 - [x] Design system (cosmic/neon, RTL, Vazirmatn)
 - [x] On-device import (3 formats), sensitive fields dropped, side confirmation
 - [x] Tehran/Jalali time utils + tests
