@@ -37,3 +37,5 @@ ios/
 .env
 .env.*
 !.env.example
+
+src/lib/native-gate.generated.ts

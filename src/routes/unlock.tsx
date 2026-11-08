@@ -1,5 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { Capacitor } from "@capacitor/core";
+import { unlockNative } from "@/lib/native-gate";
 import { useEffect, useState } from "react";
 import { ArrowRight, Heart, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,7 +42,9 @@ function Unlock() {
     setError(false);
     setConnectionError(false);
     try {
-      const { ok } = await unlock({ data: { password, viewer: who } });
+      const ok = Capacitor.isNativePlatform()
+        ? await unlockNative(password, who)
+        : (await unlock({ data: { password, viewer: who } })).ok;
       if (!ok) { setError(true); return; }
       resetGateCache();
       setViewer(who);

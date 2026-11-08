@@ -1,4 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Capacitor } from "@capacitor/core";
+import { getNativeGate } from "@/lib/native-gate";
 import {
   Outlet,
   Link,
@@ -90,7 +92,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   }),
   beforeLoad: async ({ location }) => {
     if (bypassArchiveGate(location.pathname)) return { viewer: null as Viewer | null };
-    const g = (typeof window !== "undefined" && gateCache) || (await getGate());
+    const native = typeof window !== "undefined" && Capacitor.isNativePlatform();
+            const g = native ? getNativeGate() : ((typeof window !== "undefined" && gateCache) || (await getGate()));
     if (typeof window !== "undefined") gateCache = g.unlocked ? g : null;
     if (!g.unlocked || !g.viewer) throw redirect({ to: "/unlock" });
     return { viewer: g.viewer as Viewer | null };

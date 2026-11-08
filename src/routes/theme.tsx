@@ -1,5 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { Capacitor } from "@capacitor/core";
+import { lockNative } from "@/lib/native-gate";
 import { LogOut, RotateCcw } from "lucide-react";
 import { lockSite } from "@/lib/gate.functions";
 import { DEFAULT_THEME, saveTheme, setViewer, useTheme, useViewer } from "@/lib/mae/viewer";
@@ -65,7 +67,7 @@ function ThemePage() {
       </div>
       <div className="mt-6 flex flex-wrap gap-2">
         <button type="button" onClick={() => saveTheme(DEFAULT_THEME)} className="glass flex items-center gap-1 rounded-full px-4 py-2 text-sm"><RotateCcw className="size-4" /> رنگ‌های پیش‌فرض</button>
-        <button type="button" onClick={async () => { await lock(); resetGateCache(); setViewer(null); await router.navigate({ to: "/unlock" }); }}
+        <button type="button" onClick={async () => { if (Capacitor.isNativePlatform()) lockNative(); else await lock(); resetGateCache(); setViewer(null); await router.navigate({ to: "/unlock" }); }}
           className="flex items-center gap-1 rounded-full border border-border px-4 py-2 text-sm"><LogOut className="size-4" /> خروج / تعویض کاربر</button>
       </div>
     </main>
