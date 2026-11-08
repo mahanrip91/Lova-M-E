@@ -1,5 +1,5 @@
 export type Side = "M" | "E";
-export type MessageKind = "text" | "image" | "video" | "voice" | "file" | "sticker" | "music";
+export type MessageKind = "text" | "image" | "gif" | "video" | "voice" | "file" | "sticker" | "music" | "post" | "nontext";
 export type MessageSource = "live" | "archive";
 
 export interface Profile {

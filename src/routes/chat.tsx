@@ -1,11 +1,13 @@
 import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, LoaderCircle, LogOut, MessageCircle, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LiveBubble } from "@/components/mae/LiveBubble";
-import { chatError, getMyProfile, getSession, listMessages, mergeMessages, sendTextMessage, signOut, subscribeMessages } from "@/lib/chat/api";
+import { chatError, getMyProfile, getSession, listMessages, mergeMessages, saveMessagesCache, sendTextMessage, signOut, subscribeMessages } from "@/lib/chat/api";
 import type { ChatMessage, Profile } from "@/lib/chat/types";
+import { syncRemoteArchiveAfterLogin } from "@/lib/mae/store";
 import { setViewer } from "@/lib/mae/viewer";
 import { dayKey, fmtDate } from "@/lib/mae/time";
 
@@ -35,7 +37,14 @@ function Chat() {
   const [sending, setSending] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const end = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLElement | null>(null);
+  const activeProfile = useRef<Profile | null>(null);
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 88,
+    overscan: 16,
+  });
 
   useEffect(() => {
     let active = true;
@@ -43,7 +52,7 @@ function Chat() {
     setLoading(true); setError(""); setMessages([]); setProfile(null);
     async function refresh() {
       try {
-        const rows = await listMessages();
+        const rows = await listMessages(activeProfile.current!);
         if (active) { setMessages((prev) => mergeMessages(prev, rows)); setError(""); }
       } catch (err) { if (active) setError(chatError(err)); }
     }
@@ -52,10 +61,18 @@ function Chat() {
         const me = await getMyProfile();
         if (!active) return;
         if (!me) { setError("پروفایل این حساب پیدا نشد؛ دسترسی اعضا را بررسی کن."); return; }
+        try { await syncRemoteArchiveAfterLogin(); }
+        catch (syncError) { console.warn("M AND E archive sync failed:", syncError); }
+        if (!active) return;
+        activeProfile.current = me;
         setProfile(me); setViewer(me.side);
         // Subscribe before reading; reconcile on every connection to cover gaps.
         cleanup = subscribeMessages((message) => {
-          if (active) setMessages((prev) => mergeMessages(prev, [message]));
+          if (active) setMessages((prev) => {
+            const next = mergeMessages(prev, [message]);
+            void saveMessagesCache(next);
+            return next;
+          });
         }, (status) => {
           if (!active) return;
           setConnection(status);
@@ -71,7 +88,11 @@ function Chat() {
     return () => { active = false; cleanup?.(); window.removeEventListener("focus", onFocus); };
   }, [attempt, router]);
 
-  useEffect(() => { end.current?.scrollIntoView({ block: "end", behavior: "auto" }); }, [messages]);
+  useEffect(() => {
+    if (messages.length && !loading) {
+      virtualizer.scrollToIndex(messages.length - 1, { align: "end" });
+    }
+  }, [messages.length, loading, virtualizer]);
 
   async function logout() {
     setLeaving(true); setError("");
@@ -90,7 +111,11 @@ function Chat() {
     const draft = body;
     try {
       const message = await sendTextMessage(draft, profile.id);
-      setMessages((prev) => mergeMessages(prev, [message]));
+      setMessages((prev) => {
+        const next = mergeMessages(prev, [message]);
+        void saveMessagesCache(next);
+        return next;
+      });
       setBody("");
     } catch (err) { setError(chatError(err)); }
     finally { setSending(false); }
@@ -110,19 +135,27 @@ function Chat() {
           <Button onClick={logout} disabled={leaving} variant="ghost" size="icon" title="خروج از حساب" aria-label="خروج از حساب"><LogOut /></Button>
         </div>
       </header>
-      <section className="min-h-0 flex-1 overflow-y-auto py-4" aria-label="پیام‌ها">
+      <section ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto py-4" aria-label="پیام‌ها">
         {loading && <p role="status" className="flex items-center justify-center gap-2 p-8 text-muted-foreground"><LoaderCircle className="size-5 animate-spin" /> در حال دریافت پیام‌ها…</p>}
         {!loading && profile && !messages.length && !error && <p className="p-8 text-center text-muted-foreground">هنوز پیامی نیست.</p>}
-        {profile && messages.map((message, index) => {
-          const mine = message.sender_id === profile.id;
-          const previous = messages[index - 1];
-          const time = Date.parse(message.created_at);
-          return <div key={message.id}>
-            {(!previous || dayKey(time) !== dayKey(Date.parse(previous.created_at))) && <p className="py-3 text-center text-xs text-muted-foreground">{fmtDate(time)}</p>}
-            <LiveBubble message={message} mine={mine} side={mine ? profile.side : profile.side === "M" ? "E" : "M"} />
-          </div>;
-        })}
-        <div ref={end} />
+        {profile && messages.length > 0 && <div style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
+          {virtualizer.getVirtualItems().map((item) => {
+            const message = messages[item.index];
+            if (!message) return null;
+            const previous = messages[item.index - 1];
+            const mine = message.sender_id === profile.id;
+            const time = Date.parse(message.created_at);
+            return <div
+              key={message.id}
+              data-index={item.index}
+              ref={virtualizer.measureElement}
+              style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }}
+            >
+              {(!previous || dayKey(time) !== dayKey(Date.parse(previous.created_at))) && <p className="py-3 text-center text-xs text-muted-foreground">{fmtDate(time)}</p>}
+              <LiveBubble message={message} mine={mine} side={mine ? profile.side : profile.side === "M" ? "E" : "M"} />
+            </div>;
+          })}
+        </div>}
       </section>
       {error && <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2"><p role="alert" className="text-sm text-destructive">{error}</p><Button variant="ghost" size="sm" onClick={() => setAttempt((n) => n + 1)}>تلاش دوباره</Button></div>}
       <form onSubmit={submit} className="glass flex shrink-0 items-end gap-2 px-3 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">

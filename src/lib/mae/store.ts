@@ -1,6 +1,7 @@
 // On-device store. All chat data lives only in this browser's IndexedDB.
 import { useSyncExternalStore } from "react";
 import { get, set, del } from "idb-keyval";
+import { supabase } from "@/lib/supabase";
 import { detectFormat, parseRubika, parseTelegram, parseTelegramDesktop, sortMessages, telegramSourceId, type Msg, type Side, type Source } from "./parse";
 import { dayStats, sessionize, type DayStat, type Session } from "./analysis";
 import { jalaliToUtc } from "./time";
@@ -73,6 +74,196 @@ function derive(messages: Msg[], sides: Record<string, SideEntry>) {
   return { uidIndex, sessions: sessionize(messages), days: dayStats(messages, (k) => sides[k]?.side) };
 }
 
+
+let remoteSynced = false;
+let remoteSyncPromise: Promise<boolean> | null = null;
+
+async function syncRemoteArchive() {
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!auth.user) return false;
+
+  const [{ data: sourceRows, error: sourceError }, { data: senderRows, error: senderError }, { data: profiles, error: profileError }] = await Promise.all([
+    supabase.from("archive_sources").select("id,platform,label,file_name,is_group,message_count,from_at,to_at").order("from_at"),
+    supabase.from("archive_senders").select("source_id,sender_key,display_name,side,confirmed,guess_reason,message_count"),
+    supabase.from("profiles").select("id,display_name,side")
+  ]);
+
+  if (sourceError) throw sourceError;
+  if (senderError) throw senderError;
+  if (profileError) throw profileError;
+
+  const sources = (sourceRows ?? []).map((r) => ({
+    id: r.id,
+    kind: r.platform === "rubika" ? "rubika" as const : "telegram" as const,
+    isGroup: !!r.is_group,
+    label: r.label,
+    fileName: r.file_name,
+    count: Number(r.message_count),
+    from: Date.parse(r.from_at),
+    to: Date.parse(r.to_at),
+    senders: (senderRows ?? []).filter((x) => x.source_id === r.id).map((x) => ({
+      key: `${r.id}:${x.sender_key}`,
+      name: x.display_name,
+      count: Number(x.message_count),
+      guess: x.side === "M" || x.side === "E" ? x.side : "O" as const,
+      guessReason: x.guess_reason ?? ""
+    }))
+  }));
+
+  const sides: Record<string, SideEntry> = {};
+  for (const r of senderRows ?? []) {
+    const key = `${r.source_id}:${r.sender_key}`;
+    sides[key] = {
+      side: r.side === "M" || r.side === "E" ? r.side : "O",
+      confirmed: !!r.confirmed,
+      name: r.display_name,
+      reason: r.guess_reason ?? ""
+    };
+  }
+
+  const expected = (sourceRows ?? []).reduce((n, r) => n + Number(r.message_count), 0);
+  const { count, error: countError } = await supabase
+    .from("archive_messages").select("uid", { count: "exact", head: true });
+  if (countError) throw countError;
+  if (count !== expected) throw new Error(`تعداد آرشیو با منابع برابر نیست: ${count} / ${expected}`);
+
+  type RemoteRow = {
+    uid: string; source_id: string; occurred_at: string; sender_key: string;
+    body: string | null; kind: string; original_order: number;
+    reply_uid: string | null; media_label: string | null;
+    is_edited: boolean; is_forwarded: boolean;
+  };
+
+  const raw: RemoteRow[] = [];
+  const pageSize = 1000;
+  for (let base = 0; base < (count ?? 0); base += 8000) {
+    const starts = Array.from({ length: 8 }, (_, i) => base + i * pageSize)
+      .filter((start) => start < (count ?? 0));
+    const pages = await Promise.all(starts.map(async (start) => {
+      const { data, error } = await supabase.from("archive_messages")
+        .select("uid,source_id,occurred_at,sender_key,body,kind,original_order,reply_uid,media_label,is_edited,is_forwarded")
+        .order("occurred_at", { ascending: true })
+        .order("uid", { ascending: true })
+        .range(start, start + pageSize - 1);
+      if (error) throw error;
+      return (data ?? []) as RemoteRow[];
+    }));
+    for (const page of pages) raw.push(...page);
+  }
+
+  if (raw.length !== count) throw new Error(`دریافت آرشیو ناقص است: ${raw.length} از ${count}`);
+
+  const kindMap: Record<string, Msg["kd"]> = {
+    text: "text", image: "image", gif: "gif", video: "video",
+    voice: "voice", music: "music", file: "file", sticker: "sticker",
+    post: "post", nontext: "nontext"
+  };
+
+  const messages: Msg[] = raw.map((r) => {
+    const m: Msg = {
+      u: `archive:${r.uid}`,
+      s: r.source_id,
+      t: Date.parse(r.occurred_at),
+      k: `${r.source_id}:${r.sender_key}`,
+      x: r.body ?? "",
+      kd: kindMap[r.kind] ?? "nontext",
+      o: Number(r.original_order)
+    };
+    if (r.reply_uid) m.r = `archive:${r.reply_uid}`;
+    if (r.media_label) m.m = r.media_label;
+    if (r.is_edited) m.e = 1;
+    if (r.is_forwarded) m.f = 1;
+    return m;
+  });
+
+  // پیام‌های زنده نیز به همان جریان زمانی اضافه می‌شوند.
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+  const { count: liveCount, error: liveCountError } = await supabase
+    .from("messages").select("id", { count: "exact", head: true });
+  if (liveCountError) throw liveCountError;
+
+  const liveRows: any[] = [];
+  for (let base = 0; base < (liveCount ?? 0); base += 1000) {
+    const { data, error } = await supabase.from("messages")
+      .select("id,sender_id,body,kind,created_at,reply_to,edited_at")
+      .order("created_at", { ascending: true }).order("id", { ascending: true })
+      .range(base, base + 999);
+    if (error) throw error;
+    liveRows.push(...(data ?? []));
+  }
+
+  if (liveRows.length !== liveCount) throw new Error("دریافت پیام‌های زنده کامل نشد.");
+
+  const liveSource: Source = {
+    id: "LIVE", kind: "telegram", isGroup: false,
+    label: "گفتگوی زنده", fileName: "Supabase",
+    count: liveRows.length,
+    from: liveRows.length ? Date.parse(liveRows[0].created_at) : Date.now(),
+    to: liveRows.length ? Date.parse(liveRows[liveRows.length - 1].created_at) : Date.now(),
+    senders: []
+  };
+
+  for (const p of profiles ?? []) {
+    if (p.side === "M" || p.side === "E") {
+      const key = `LIVE:${p.side}`;
+      sides[key] = { side: p.side, confirmed: true, name: p.display_name, reason: "" };
+      liveSource.senders.push({ key, name: p.display_name, count: liveRows.filter((m) => m.sender_id === p.id).length, guess: p.side, guessReason: "" });
+    }
+  }
+
+  const liveMessages: Msg[] = liveRows.map((r) => {
+    const p = profileById.get(r.sender_id);
+    const side = p?.side === "M" || p?.side === "E" ? p.side : "O";
+    const m: Msg = {
+      u: `live:${r.id}`, s: "LIVE", t: Date.parse(r.created_at),
+      k: `LIVE:${side}`, x: r.body ?? "", kd: kindMap[r.kind] ?? "nontext",
+      o: 0
+    };
+    if (r.reply_to) m.r = `live:${r.reply_to}`;
+    if (r.edited_at) m.e = 1;
+    return m;
+  });
+
+  const allSources = liveRows.length ? [...sources, liveSource] : sources;
+  const allMessages = sortMessages([...messages, ...liveMessages], allSources.map((x) => x.id));
+
+  const [savedEvents, savedSettings] = await Promise.all([
+    get<MemoryEvent[]>("mae:events"),
+    get<Settings>("mae:settings"),
+  ]);
+  const p = applyPresets(savedEvents ?? state.events, {
+    ...defaultSettings(),
+    ...(savedSettings ?? state.settings),
+  });
+  await Promise.all([
+    set("mae:messages", allMessages),
+    set("mae:sources", allSources),
+    set("mae:sides", sides),
+    set("mae:events", p.events),
+    set("mae:settings", p.settings)
+  ]);
+
+  setState({
+    status: allMessages.length ? "ready" : "empty",
+    messages: allMessages, sources: allSources, sides,
+    events: p.events, settings: p.settings,
+    ...derive(allMessages, sides)
+  });
+  remoteSynced = true;
+  return true;
+}
+
+export function syncRemoteArchiveAfterLogin(): Promise<boolean> {
+  if (remoteSynced) return Promise.resolve(true);
+  if (!remoteSyncPromise) {
+    remoteSyncPromise = syncRemoteArchive().finally(() => {
+      remoteSyncPromise = null;
+    });
+  }
+  return remoteSyncPromise;
+}
+
 let started = false;
 export function initStore() {
   if (started || typeof window === "undefined") return;
@@ -90,6 +281,13 @@ export function initStore() {
         status: msgs.length ? "ready" : "empty", messages: msgs, sources: sources ?? [], sides: sd,
         bookmarks: bookmarks ?? [], events: p.events, settings: p.settings, ...derive(msgs, sd),
       });
+
+      // همگام‌سازی آرشیو از سرور؛ در قطع اینترنت کش محلی حفظ می‌شود.
+      try {
+        await syncRemoteArchiveAfterLogin();
+      } catch (error) {
+        console.warn("M AND E remote archive sync failed:", error);
+      }
     } catch {
       setState({ status: "empty" });
     }

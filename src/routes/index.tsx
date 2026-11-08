@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Cake, Dices, Gift, Heart, Sparkles, Upload, History, PartyPopper, Plus } from "lucide-react";
+import { Cake, Dices, Gift, Heart, Sparkles, History, PartyPopper, Plus } from "lucide-react";
 import { useStore, type EventKind } from "@/lib/mae/store";
 import { LiveCounter } from "@/components/mae/Counter";
 import { dayKey, dayStartMs, fa, fmtDate, fmtDateTime, fmtTime } from "@/lib/mae/time";
@@ -62,18 +62,7 @@ function Home() {
           <Heart className="absolute inset-0 m-auto size-5 text-accent" />
         </div>
       </header>
-
-      {status === "empty" && (
-        <Link to="/import" className="glass anim-rise mt-6 flex items-center gap-4 rounded-3xl p-5">
-          <span className="grid size-12 place-items-center rounded-2xl bg-love text-primary-foreground"><Upload className="size-6" /></span>
-          <span>
-            <span className="block font-bold">وارد کردن آرشیو گفتگوها</span>
-            <span className="text-sm text-muted-foreground">سه فایل را انتخاب کن؛ همه‌چیز فقط روی همین دستگاه پردازش و ذخیره می‌شود.</span>
-          </span>
-        </Link>
-      )}
-
-      {/* Featured, pinned first memory */}
+{/* Featured, pinned first memory */}
       <section aria-labelledby="first-day" className="relative mt-6 overflow-hidden rounded-3xl border border-accent/40 p-[1px] anim-rise">
         <div className="bg-love anim-shimmer absolute inset-0 opacity-60" aria-hidden />
         <div className="relative rounded-3xl bg-background/85 p-6 backdrop-blur-xl">
@@ -83,17 +72,14 @@ function Home() {
             شب {fmtDate(midnight - 1)} تا بامداد {fmtDate(midnight)} — یک گفتگوی پیوسته‌ی گروهی که از نیمه‌شب گذشت.
           </p>
           {!firstSrc ? (
-            <div className="mt-4 rounded-2xl border border-gold/40 bg-gold/10 p-3 text-xs">
-              <p className="font-bold text-gold">آرشیو گروه لازم است</p>
-              <p className="mt-1 text-muted-foreground">
-                {settings.firstSourceId ? "آرشیو گروهی که انتخاب کرده بودی روی این دستگاه نیست." : "شب اول در یک گروه بود، نه در گفتگوهای خصوصی."} خروجی آن گروه را وارد کن و در «تنظیم خاطره‌ها» به‌عنوان منبع شب اول انتخابش کن. تا آن موقع هیچ پیامی پخش یا ساخته نمی‌شود.
-              </p>
-              <div className="mt-2 flex gap-2">
-                <Link to="/import" className="rounded-full bg-love px-3 py-1 text-primary-foreground">وارد کردن آرشیو گروه</Link>
-                <Link to="/memories" className="rounded-full border border-border px-3 py-1">انتخاب منبع</Link>
-              </div>
-            </div>
-          ) : (
+                      <div className="mt-4 rounded-2xl border border-gold/40 bg-gold/10 p-3 text-xs">
+                        <p className="font-bold text-gold">منبع شب اول هنوز انتخاب نشده</p>
+                        <p className="mt-1 text-muted-foreground">آرشیوها از Supabase دریافت می‌شوند. برای پخش شب اول، منبع گفتگوی گروهی را از تنظیم خاطره‌ها انتخاب کن.</p>
+                        <div className="mt-2">
+                          <Link to="/memories" className="rounded-full border border-border px-3 py-1">انتخاب منبع شب اول</Link>
+                        </div>
+                      </div>
+                    ) : (
             <>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-2xl bg-mahan/10 p-3">
@@ -165,7 +151,7 @@ function Home() {
             تازه‌ترین پیام‌های آرشیو
           </Link>
         )}
-        <Link to="/import" className="glass rounded-full px-4 py-2">مدیریت آرشیو و فرستنده‌ها</Link>
+        <Link to="/import" className="glass rounded-full px-4 py-2">نمایش آرشیو یکپارچه</Link>
         <Link to="/theme" className="glass rounded-full px-4 py-2">تم و رنگ‌ها · تعویض کاربر</Link>
         <Link to="/chat" className="glass rounded-full px-4 py-2">گفتگوی زنده</Link>
       </div>
