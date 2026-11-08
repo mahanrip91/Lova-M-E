@@ -146,14 +146,9 @@ function Home() {
       </div>
 
       <div className="mt-8 flex flex-wrap gap-2 text-sm">
-        {status === "ready" && (
-          <Link to="/timeline" search={{ at: messages[messages.length - 1]!.t }} className="glass rounded-full px-4 py-2">
-            تازه‌ترین پیام‌های آرشیو
-          </Link>
-        )}
-        <Link to="/import" className="glass rounded-full px-4 py-2">نمایش آرشیو یکپارچه</Link>
+        <Link to="/chat" className="glass rounded-full px-4 py-2">چت یکپارچه</Link>
+        <Link to="/import" className="glass rounded-full px-4 py-2">مدیریت و ورود آرشیو</Link>
         <Link to="/theme" className="glass rounded-full px-4 py-2">تم و رنگ‌ها · تعویض کاربر</Link>
-        <Link to="/chat" className="glass rounded-full px-4 py-2">گفتگوی زنده</Link>
       </div>
       <p className="mt-6 pb-4 text-center text-[11px] text-muted-foreground">آرشیو خاطرات فقط روی همین دستگاه می‌ماند و جایی ارسال نمی‌شود.</p>
     </main>

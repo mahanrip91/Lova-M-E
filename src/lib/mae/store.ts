@@ -1,3 +1,4 @@
+import type { ChatMessage, Profile } from "@/lib/chat/types";
 // On-device store. All chat data lives only in this browser's IndexedDB.
 import { useSyncExternalStore } from "react";
 import { get, set, del } from "idb-keyval";
@@ -252,6 +253,93 @@ async function syncRemoteArchive() {
   });
   remoteSynced = true;
   return true;
+}
+
+
+export async function upsertLiveChatMessages(rows: ChatMessage[], profile: Profile): Promise<void> {
+  if (!rows.length) return;
+
+  const messages = [...state.messages];
+  const sides = { ...state.sides };
+  const seen = new Set(messages.map((m) => m.u));
+
+  for (const row of rows) {
+    const side: Side = row.sender_id === profile.id
+      ? profile.side
+      : profile.side === "M" ? "E" : "M";
+
+    const key = `LIVE:${side}`;
+    const old = sides[key];
+
+    sides[key] = {
+      side,
+      confirmed: true,
+      name: old?.name ?? (side === profile.side
+        ? profile.display_name
+        : side === "M" ? "ماهان" : "الیسا"),
+      reason: ""
+    };
+
+    const uid = `live:${row.id}`;
+    if (seen.has(uid)) continue;
+    seen.add(uid);
+
+    const message: Msg = {
+      u: uid,
+      s: "LIVE",
+      t: Date.parse(row.created_at),
+      k: key,
+      x: row.body ?? "",
+      kd: row.kind,
+      o: 0
+    };
+
+    if (row.reply_to) message.r = `live:${row.reply_to}`;
+    if (row.edited_at) message.e = 1;
+
+    messages.push(message);
+  }
+
+  const liveMessages = messages.filter((m) => m.s === "LIVE");
+  const existingSource = state.sources.find((s) => s.id === "LIVE");
+
+  const liveSource: Source = {
+    id: "LIVE",
+    kind: "telegram",
+    isGroup: false,
+    label: "گفتگوی زنده",
+    fileName: "Supabase",
+    count: liveMessages.length,
+    from: liveMessages.length ? Math.min(...liveMessages.map((m) => m.t)) : Date.now(),
+    to: liveMessages.length ? Math.max(...liveMessages.map((m) => m.t)) : Date.now(),
+    senders: (["M", "E"] as Side[]).map((side) => ({
+      key: `LIVE:${side}`,
+      name: sides[`LIVE:${side}`]?.name ?? (side === "M" ? "ماهان" : "الیسا"),
+      count: liveMessages.filter((m) => m.k === `LIVE:${side}`).length,
+      guess: side,
+      guessReason: ""
+    }))
+  };
+
+  const sources = existingSource
+    ? state.sources.map((s) => s.id === "LIVE" ? liveSource : s)
+    : [...state.sources, liveSource];
+
+  const sorted = sortMessages(messages, sources.map((s) => s.id));
+
+  await Promise.all([
+    set("mae:messages", sorted),
+    set("mae:sources", sources),
+    set("mae:sides", sides)
+  ]);
+
+  setState({
+    messages: sorted,
+    sources,
+    sides,
+    status: sorted.length ? "ready" : "empty",
+    ...derive(sorted, sides)
+  });
 }
 
 export function syncRemoteArchiveAfterLogin(): Promise<boolean> {
