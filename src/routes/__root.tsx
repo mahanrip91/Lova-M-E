@@ -18,6 +18,8 @@ import { initStore } from "@/lib/mae/store";
 import { BottomNav } from "@/components/mae/Nav";
 import { getGate, type Viewer } from "@/lib/gate.functions";
 import { applyTheme, setViewer, useTheme, useViewer } from "@/lib/mae/viewer";
+import { bypassArchiveGate } from "@/lib/chat/routing";
+import { supabase } from "@/lib/supabase";
 
 // Client-side cache of the server gate result so navigation stays instant.
 let gateCache: { unlocked: boolean; viewer: Viewer | null } | null = null;
@@ -87,7 +89,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
   }),
   beforeLoad: async ({ location }) => {
-    if (location.pathname === "/unlock") return { viewer: null as Viewer | null };
+    if (bypassArchiveGate(location.pathname)) return { viewer: null as Viewer | null };
     const g = (typeof window !== "undefined" && gateCache) || (await getGate());
     if (typeof window !== "undefined") gateCache = g.unlocked ? g : null;
     if (!g.unlocked || !g.viewer) throw redirect({ to: "/unlock" });
@@ -114,6 +116,7 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
+  const router = useRouter();
   const { queryClient, viewer: ctxViewer } = Route.useRouteContext();
   const path = useLocation({ select: (l) => l.pathname });
   const viewer = useViewer();
@@ -123,13 +126,29 @@ function RootComponent() {
   useEffect(() => {
     if (ctxViewer) initStore();
   }, [ctxViewer]);
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+      if (router.state.location.pathname !== "/chat" && router.state.location.pathname !== "/login") return;
+      // Leave the synchronous Auth callback before revalidation requests.
+      setTimeout(() => {
+        if (event === "SIGNED_OUT") {
+          void queryClient.cancelQueries().then(() => {
+            queryClient.clear();
+            void router.navigate({ to: "/login", replace: true });
+          });
+        } else { void router.invalidate(); }
+      }, 0);
+    });
+    return () => subscription.unsubscribe();
+  }, [queryClient, router]);
   return (
     <QueryClientProvider client={queryClient}>
       <div className="starfield" aria-hidden />
-      <div className="relative z-10 min-h-screen pb-24">
+      <div className={`relative z-10 min-h-screen ${bypassArchiveGate(path) ? "" : "pb-24"}`}>
         <Outlet />
       </div>
-      {path !== "/unlock" && <BottomNav />}
+      {!bypassArchiveGate(path) && <BottomNav />}
     </QueryClientProvider>
   );
 }

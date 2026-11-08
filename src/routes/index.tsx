@@ -167,8 +167,9 @@ function Home() {
         )}
         <Link to="/import" className="glass rounded-full px-4 py-2">مدیریت آرشیو و فرستنده‌ها</Link>
         <Link to="/theme" className="glass rounded-full px-4 py-2">تم و رنگ‌ها · تعویض کاربر</Link>
+        <Link to="/chat" className="glass rounded-full px-4 py-2">گفتگوی زنده</Link>
       </div>
-      <p className="mt-6 pb-4 text-center text-[11px] text-muted-foreground">همه‌ی پیام‌ها فقط روی همین دستگاه می‌مانند و جایی ارسال نمی‌شوند.</p>
+      <p className="mt-6 pb-4 text-center text-[11px] text-muted-foreground">آرشیو خاطرات فقط روی همین دستگاه می‌ماند و جایی ارسال نمی‌شود.</p>
     </main>
   );
 }
