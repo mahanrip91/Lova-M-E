@@ -34,3 +34,6 @@ dist-ssr
 android/
 ios/
 .capacitor/
+.env
+.env.*
+!.env.example

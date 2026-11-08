@@ -12,7 +12,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:app": "vite build",
+    "build:app": "vite build --config vite.app.config.ts",
     "cap:sync": "npm run build:app && npx cap sync android",
     "cap:open": "npx cap open android",
     "cap:run": "npm run cap:sync && npx cap run android"
