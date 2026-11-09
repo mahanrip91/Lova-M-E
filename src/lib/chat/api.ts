@@ -4,7 +4,6 @@ import type { ChatMessage, Profile } from "./types";
 
 const messageColumns = "id,sender_id,body,kind,media_path,reply_to,client_id,source,created_at,edited_at";
 const CHAT_CACHE_KEY = "mae:unified-chat:v1";
-const ARCHIVE_COMPLETE_KEY = "mae:archive-complete:v1";
 
 export async function signIn(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -57,7 +56,7 @@ async function fetchLiveMessages(limit = 200): Promise<ChatMessage[]> {
   return (data as ChatMessage[]).reverse();
 }
 
-async function fetchArchiveMessages(): Promise<ChatMessage[]> {
+async function fetchArchiveMessages(limit = 50): Promise<ChatMessage[]> {
   const { data: profiles, error: profileError } = await supabase
     .from("profiles").select("id,side").in("side", ["M", "E"]);
 
@@ -67,58 +66,19 @@ async function fetchArchiveMessages(): Promise<ChatMessage[]> {
   for (const p of profiles ?? []) {
     if (p.side === "M" || p.side === "E") ids[p.side] = p.id;
   }
-  if (!ids["M"] || !ids["E"]) throw new Error("پروفایل هر دو طرف گفتگو پیدا نشد.");
-
-  type ArchiveRow = {
-    uid: string;
-    sender_side: "M" | "E";
-    occurred_at: string;
-    body: string | null;
-    kind: string;
-    reply_uid: string | null;
-    media_label: string | null;
-    is_edited: boolean;
-  };
-
-  const { count, error: countError } = await supabase
-    .from("archive_messages")
-    .select("uid", { count: "exact", head: true });
-
-  if (countError) throw countError;
-  if (count === null) throw new Error("تعداد پیام‌های آرشیو قابل بررسی نیست.");
-
-  const rows: ArchiveRow[] = [];
-  const pageSize = 1000;
-  const batchSize = 8;
-
-  // صفحه‌بندی برای دریافت کامل آرشیو، بدون محدودیت ۱۰۰۰ ردیفی Supabase
-  for (let base = 0; ; base += pageSize * batchSize) {
-    const starts = Array.from(
-      { length: batchSize },
-      (_, i) => base + i * pageSize
-    );
-
-    const pages = await Promise.all(starts.map(async (start) => {
-      const { data, error } = await supabase.from("archive_messages")
-        .select("uid,sender_side,occurred_at,body,kind,reply_uid,media_label,is_edited")
-        .order("occurred_at", { ascending: true })
-        .order("uid", { ascending: true })
-        .range(start, start + pageSize - 1);
-
-      if (error) throw error;
-      return (data ?? []) as ArchiveRow[];
-    }));
-
-    for (const page of pages) rows.push(...page);
-
-    if (pages.some((page) => page.length < pageSize)) break;
+  if (!ids["M"] || !ids["E"]) {
+    throw new Error("پروفایل هر دو طرف گفتگو پیدا نشد.");
   }
 
-  if (rows.length !== count) {
-    throw new Error(`آرشیو ناقص دریافت شد: ${rows.length} از ${count}`);
-  }
+  const { data, error } = await supabase.from("archive_messages")
+    .select("uid,sender_side,occurred_at,body,kind,reply_uid,media_label,is_edited")
+    .order("occurred_at", { ascending: false })
+    .order("uid", { ascending: false })
+    .limit(limit);
 
-  return rows.map((row): ChatMessage => ({
+  if (error) throw error;
+
+  return [...(data ?? [])].reverse().map((row): ChatMessage => ({
     id: `archive:${row.uid}`,
     sender_id: ids[row.sender_side] ?? "",
     body: row.body,
@@ -143,28 +103,18 @@ export async function saveMessagesCache(messages: ChatMessage[]) {
   }
 }
 
-export async function listMessages(profile: Profile): Promise<ChatMessage[]> {
+export async function listMessages(_profile: Profile): Promise<ChatMessage[]> {
   const cached = await get<ChatMessage[]>(CHAT_CACHE_KEY).catch(() => []);
-  const cachedRows = cached ?? [];
-  const cachedArchive = cachedRows.filter((m) => m.source === "archive");
-
   try {
-    // فقط آرشیوی که نشانگر تکمیل معتبر دارد از کش خوانده می‌شود.
-    const cachedComplete = await get<number>(ARCHIVE_COMPLETE_KEY).catch(() => 0);
-    const useCache = cachedArchive.length > 0 &&
-      cachedComplete === cachedArchive.length;
-
-    const archive = useCache ? cachedArchive : await fetchArchiveMessages();
-    const live = await fetchLiveMessages();
+    const [archive, live] = await Promise.all([
+      fetchArchiveMessages(50),
+      fetchLiveMessages(200)
+    ]);
     const combined = mergeMessages(archive, live);
-
     await saveMessagesCache(combined);
-    if (!useCache) await set(ARCHIVE_COMPLETE_KEY, archive.length);
-
     return combined;
   } catch (error) {
-    // اگر اینترنت قطع بود، نسخهٔ ذخیره‌شده روی گوشی نمایش داده می‌شود.
-    if (cachedRows.length) return cachedRows;
+    if (cached?.length) return cached.slice(-250);
     throw error;
   }
 }

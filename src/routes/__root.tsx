@@ -12,7 +12,7 @@ import {
   useLocation,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -91,7 +91,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
   }),
   beforeLoad: async ({ location }) => {
-    if (bypassArchiveGate(location.pathname)) return { viewer: null as Viewer | null };
+    if (location.pathname === "/unlock") return { viewer: null as Viewer | null };
+
+    // Native SPA prerender has no browser session or cookies.
+    if (typeof window === "undefined" && import.meta.env.VITE_CAPACITOR_BUILD === "true") {
+      return { viewer: null as Viewer | null };
+    }
+
     const native = typeof window !== "undefined" && Capacitor.isNativePlatform();
             const g = native ? getNativeGate() : ((typeof window !== "undefined" && gateCache) || (await getGate()));
     if (typeof window !== "undefined") gateCache = g.unlocked ? g : null;
@@ -122,6 +128,24 @@ function RootComponent() {
   const router = useRouter();
   const { queryClient, viewer: ctxViewer } = Route.useRouteContext();
   const path = useLocation({ select: (l) => l.pathname });
+  const [nativeGateReady, setNativeGateReady] = useState(false);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || path === "/unlock") {
+      setNativeGateReady(true);
+      return;
+    }
+
+    const gate = getNativeGate();
+    if (!gate.unlocked || !gate.viewer) {
+      void router.navigate({ to: "/unlock", replace: true });
+      return;
+    }
+
+    setViewer(gate.viewer);
+    setNativeGateReady(true);
+  }, [path, router]);
+
   const viewer = useViewer();
   const theme = useTheme();
   useEffect(() => { setViewer(ctxViewer); }, [ctxViewer]);
@@ -149,9 +173,9 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <div className="starfield" aria-hidden />
       <div className={`relative z-10 min-h-screen ${bypassArchiveGate(path) ? "" : "pb-24"}`}>
-        <Outlet />
+        {(!nativeGateReady && path !== "/unlock") ? null : <Outlet />}
       </div>
-      {!bypassArchiveGate(path) && <BottomNav />}
+      {nativeGateReady && !bypassArchiveGate(path) && <BottomNav />}
     </QueryClientProvider>
   );
 }

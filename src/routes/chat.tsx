@@ -11,7 +11,7 @@ import {
 } from "@/lib/chat/api";
 import type { Profile } from "@/lib/chat/types";
 import {
-  syncRemoteArchiveAfterLogin, useStore, toggleBookmark,
+  syncRemoteArchiveAfterLogin, loadOlderArchiveMessages, hasOlderArchiveMessages, useStore, toggleBookmark,
   upsertLiveChatMessages
 } from "@/lib/mae/store";
 import { setViewer } from "@/lib/mae/viewer";
@@ -53,6 +53,10 @@ function Chat() {
   const [sending, setSending] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const loadingOlderRef = useRef(false);
+  const initialScrollDone = useRef(false);
+
 
   const scrollRef = useRef<HTMLElement | null>(null);
   const activeProfile = useRef<Profile | null>(null);
@@ -61,6 +65,8 @@ function Chat() {
     count: messages.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 100,
+    getItemKey: (index) => messages[index]?.u ?? index,
+
     overscan: 18
   });
 
@@ -142,7 +148,8 @@ function Chat() {
   }, [attempt, router]);
 
   useEffect(() => {
-    if (!messages.length || loading) return;
+    if (!messages.length || loading || initialScrollDone.current) return;
+    initialScrollDone.current = true;
 
     const element = scrollRef.current;
     if (!element) return;
@@ -166,6 +173,30 @@ function Chat() {
       cleanupFrame2();
     };
   }, [messages.length, loading, virtualizer]);
+
+  async function loadOlder() {
+    const element = scrollRef.current;
+    if (!element || element.scrollTop > 220 ||
+        loadingOlderRef.current || !hasOlderArchiveMessages()) return;
+
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    const oldHeight = element.scrollHeight;
+
+    try {
+      const added = await loadOlderArchiveMessages();
+      if (added > 0) {
+        window.requestAnimationFrame(() => {
+          element.scrollTop += element.scrollHeight - oldHeight;
+        });
+      }
+    } catch (err) {
+      setError(chatError(err));
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    }
+  }
 
   async function logout() {
     setLeaving(true);
@@ -230,12 +261,18 @@ function Chat() {
         </div>
       </header>
 
-      <section ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto py-4"
+      <section ref={scrollRef} onScroll={() => void loadOlder()} className="min-h-0 flex-1 overflow-y-auto py-4"
         aria-label="همه پیام‌ها">
+        {loadingOlder && (
+          <p className="py-3 text-center text-xs text-muted-foreground">
+            در حال بارگذاری پیام‌های قدیمی‌تر…
+          </p>
+        )}
+
         {loading && (
           <p role="status" className="flex items-center justify-center gap-2 p-8 text-muted-foreground">
             <LoaderCircle className="size-5 animate-spin" />
-            در حال دریافت آرشیو و پیام‌ها…
+            در حال دریافت پیام‌های اخیر…
           </p>
         )}
 

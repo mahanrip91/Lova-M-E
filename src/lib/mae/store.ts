@@ -78,6 +78,11 @@ function derive(messages: Msg[], sides: Record<string, SideEntry>) {
 
 let remoteSynced = false;
 let remoteSyncPromise: Promise<boolean> | null = null;
+const ARCHIVE_PAGE_SIZE = 50;
+let archiveOffset = 0;
+let archiveTotal = 0;
+let archivePageLoading = false;
+
 
 async function syncRemoteArchive() {
   const { data: auth, error: authError } = await supabase.auth.getUser();
@@ -136,24 +141,18 @@ async function syncRemoteArchive() {
     is_edited: boolean; is_forwarded: boolean;
   };
 
-  const raw: RemoteRow[] = [];
-  const pageSize = 1000;
-  for (let base = 0; base < (count ?? 0); base += 8000) {
-    const starts = Array.from({ length: 8 }, (_, i) => base + i * pageSize)
-      .filter((start) => start < (count ?? 0));
-    const pages = await Promise.all(starts.map(async (start) => {
-      const { data, error } = await supabase.from("archive_messages")
-        .select("uid,source_id,occurred_at,sender_key,body,kind,original_order,reply_uid,media_label,is_edited,is_forwarded")
-        .order("occurred_at", { ascending: true })
-        .order("uid", { ascending: true })
-        .range(start, start + pageSize - 1);
-      if (error) throw error;
-      return (data ?? []) as RemoteRow[];
-    }));
-    for (const page of pages) raw.push(...page);
-  }
+  const { data: latestRows, error: latestError } = await supabase
+    .from("archive_messages")
+    .select("uid,source_id,occurred_at,sender_key,body,kind,original_order,reply_uid,media_label,is_edited,is_forwarded")
+    .order("occurred_at", { ascending: false })
+    .order("uid", { ascending: false })
+    .range(0, ARCHIVE_PAGE_SIZE - 1);
 
-  if (raw.length !== count) throw new Error(`دریافت آرشیو ناقص است: ${raw.length} از ${count}`);
+  if (latestError) throw latestError;
+
+  const raw: RemoteRow[] = [...(latestRows ?? [])].reverse() as RemoteRow[];
+  archiveOffset = raw.length;
+  archiveTotal = count ?? 0;
 
   const kindMap: Record<string, Msg["kd"]> = {
     text: "text", image: "image", gif: "gif", video: "video",
@@ -350,6 +349,75 @@ export function syncRemoteArchiveAfterLogin(): Promise<boolean> {
     });
   }
   return remoteSyncPromise;
+}
+
+
+export function hasOlderArchiveMessages() {
+  return archiveOffset < archiveTotal;
+}
+
+export async function loadOlderArchiveMessages(): Promise<number> {
+  if (archivePageLoading || !hasOlderArchiveMessages()) return 0;
+
+  archivePageLoading = true;
+  try {
+    const start = archiveOffset;
+    const { data, error } = await supabase
+      .from("archive_messages")
+      .select("uid,source_id,occurred_at,sender_key,body,kind,original_order,reply_uid,media_label,is_edited,is_forwarded")
+      .order("occurred_at", { ascending: false })
+      .order("uid", { ascending: false })
+      .range(start, start + ARCHIVE_PAGE_SIZE - 1);
+
+    if (error) throw error;
+
+    const rows = [...(data ?? [])].reverse();
+    if (!rows.length) {
+      archiveOffset = archiveTotal;
+      return 0;
+    }
+
+    const kindMap: Record<string, Msg["kd"]> = {
+      text: "text", image: "image", gif: "gif", video: "video",
+      voice: "voice", music: "music", file: "file", sticker: "sticker",
+      post: "post", nontext: "nontext"
+    };
+
+    const older: Msg[] = rows.map((r: any) => {
+      const m: Msg = {
+        u: `archive:${r.uid}`,
+        s: r.source_id,
+        t: Date.parse(r.occurred_at),
+        k: `${r.source_id}:${r.sender_key}`,
+        x: r.body ?? "",
+        kd: kindMap[r.kind] ?? "nontext",
+        o: Number(r.original_order)
+      };
+      if (r.reply_uid) m.r = `archive:${r.reply_uid}`;
+      if (r.media_label) m.m = r.media_label;
+      if (r.is_edited) m.e = 1;
+      if (r.is_forwarded) m.f = 1;
+      return m;
+    });
+
+    const seen = new Set(state.messages.map((m) => m.u));
+    const merged = sortMessages(
+      [...state.messages, ...older.filter((m) => !seen.has(m.u))],
+      state.sources.map((s) => s.id)
+    );
+
+    await set("mae:messages", merged);
+    setState({
+      messages: merged,
+      status: merged.length ? "ready" : "empty",
+      ...derive(merged, state.sides)
+    });
+
+    archiveOffset += rows.length;
+    return rows.length;
+  } finally {
+    archivePageLoading = false;
+  }
 }
 
 let started = false;
