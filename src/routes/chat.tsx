@@ -78,7 +78,7 @@ function Chat() {
       try {
         const rows = await listMessages(me);
         if (!active) return;
-        await upsertLiveChatMessages(rows, me);
+        await upsertLiveChatMessages(rows.filter((row) => row.source === "live"), me);
         if (active) setError("");
       } catch (err) {
         if (active) setError(chatError(err));
@@ -142,9 +142,29 @@ function Chat() {
   }, [attempt, router]);
 
   useEffect(() => {
-    if (messages.length && !loading) {
-      virtualizer.scrollToIndex(messages.length - 1, { align: "end" });
-    }
+    if (!messages.length || loading) return;
+
+    const element = scrollRef.current;
+    if (!element) return;
+
+    const last = messages.length - 1;
+    virtualizer.scrollToIndex(last, { align: "end" });
+
+    const frame1 = window.requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(last, { align: "end" });
+
+      const frame2 = window.requestAnimationFrame(() => {
+        element.scrollTop = element.scrollHeight;
+      });
+
+      cleanupFrame2 = () => window.cancelAnimationFrame(frame2);
+    });
+
+    let cleanupFrame2 = () => {};
+    return () => {
+      window.cancelAnimationFrame(frame1);
+      cleanupFrame2();
+    };
   }, [messages.length, loading, virtualizer]);
 
   async function logout() {
