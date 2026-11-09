@@ -166,3 +166,76 @@ export function chatError(error: unknown) {
   if (code === "42501") return "این حساب اجازهٔ دسترسی به گفتگو را ندارد.";
   return "ارتباط برقرار نشد یا دسترسی ممکن نیست؛ دوباره امتحان کن.";
 }
+
+
+export async function sendMediaMessage(
+  file: Blob,
+  kind: "voice" | "video" | "image" | "gif",
+  senderId: string
+): Promise<ChatMessage> {
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!auth.user || auth.user.id !== senderId) throw new Error("INVALID_SENDER");
+
+  const mime = (file.type.split(";")[0] ?? "").toLowerCase();
+  const allowed: Record<string, string[]> = {
+    voice: ["audio/webm", "audio/mp4", "audio/ogg"],
+    video: ["video/webm", "video/mp4"],
+    image: ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"],
+    gif: ["image/gif"],
+  };
+  if (!allowed[kind]?.includes(mime)) throw new Error("فرمت رسانه پشتیبانی نمی‌شود.");
+  const maxSize = kind === "voice" ? 12 * 1024 * 1024
+    : kind === "image" || kind === "gif" ? 12 * 1024 * 1024
+    : 25 * 1024 * 1024;
+  if (file.size > maxSize) throw new Error("حجم فایل بیش از حد مجاز است.");
+
+  const ext = mime.includes("jpeg") ? "jpg"
+    : mime.includes("png") ? "png"
+    : mime.includes("webp") ? "webp"
+    : mime.includes("gif") ? "gif"
+    : mime.includes("heic") ? "heic"
+    : mime.includes("heif") ? "heif"
+    : mime.includes("mp4") ? "mp4"
+    : mime.includes("ogg") ? "ogg" : "webm";
+  const path = `${auth.user.id}/${crypto.randomUUID()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("chat-media")
+    .upload(path, file, { contentType: mime, upsert: false });
+  if (uploadError) throw uploadError;
+
+  const { data, error } = await supabase.from("messages").insert({
+    sender_id: auth.user.id,
+    body: "",
+    kind,
+    media_path: path,
+    source: "live",
+    client_id: crypto.randomUUID(),
+  }).select(messageColumns).single();
+
+  if (error) {
+    await supabase.storage.from("chat-media").remove([path]);
+    throw error;
+  }
+  return data as ChatMessage;
+}
+
+export async function getChatMediaBlob(path: string): Promise<Blob> {
+  const cacheKey = `mae:media-cache:${path}`;
+  const cached = await get<Blob>(cacheKey).catch(() => undefined);
+  if (cached instanceof Blob && cached.size > 0) return cached;
+
+  const { data, error } = await supabase.storage
+    .from("chat-media")
+    .download(path);
+  if (error) throw error;
+  if (!data || data.size === 0) throw new Error("فایل رسانه خالی است.");
+
+  try {
+    await set(cacheKey, data);
+  } catch (cacheError) {
+    console.warn("M AND E media cache failed:", cacheError);
+  }
+  return data;
+}

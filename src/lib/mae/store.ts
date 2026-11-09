@@ -292,6 +292,7 @@ export async function upsertLiveChatMessages(rows: ChatMessage[], profile: Profi
       kd: row.kind,
       o: 0
     };
+    if (row.media_path) message.mediaPath = row.media_path;
 
     if (row.reply_to) message.r = `live:${row.reply_to}`;
     if (row.edited_at) message.e = 1;

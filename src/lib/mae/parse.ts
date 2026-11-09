@@ -14,6 +14,7 @@ export interface Msg {
   o: number; // original order within source
   r?: string; // reply uid
   m?: string; // media label (file name / emoji)
+  mediaPath?: string; // private live-media storage path
   e?: 1; // edited
   f?: 1; // forwarded
 }

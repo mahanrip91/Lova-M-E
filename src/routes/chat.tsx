@@ -1,13 +1,13 @@
 import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, LoaderCircle, LogOut, MessageCircle, Send } from "lucide-react";
+import { ArrowRight, LoaderCircle, LogOut, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Bubble, DayDivider } from "@/components/mae/Bubble";
 import {
   chatError, getMyProfile, getSession, listMessages,
-  sendTextMessage, signOut, subscribeMessages
+  signOut, subscribeMessages
 } from "@/lib/chat/api";
 import type { Profile } from "@/lib/chat/types";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/lib/mae/store";
 import { setViewer } from "@/lib/mae/viewer";
 import { dayKey, fmtDate } from "@/lib/mae/time";
+import { Composer } from "@/components/mae/Composer";
 
 export const Route = createFileRoute("/chat")({
   ssr: false,
@@ -49,8 +50,6 @@ function Chat() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [connection, setConnection] = useState("CONNECTING");
-  const [body, setBody] = useState("");
-  const [sending, setSending] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -214,25 +213,6 @@ function Chat() {
     }
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!profile || sending || !body.trim()) return;
-
-    setSending(true);
-    setError("");
-    const draft = body;
-
-    try {
-      const message = await sendTextMessage(draft, profile.id);
-      await upsertLiveChatMessages([message], profile);
-      setBody("");
-    } catch (err) {
-      setError(chatError(err));
-    } finally {
-      setSending(false);
-    }
-  }
-
   return (
     <main className="mx-auto flex h-dvh max-w-3xl flex-col">
       <header className="glass flex shrink-0 items-center justify-between gap-3 px-4 py-4">
@@ -332,22 +312,12 @@ function Chat() {
         </div>
       )}
 
-      <form onSubmit={submit}
-        className="glass flex shrink-0 items-end gap-2 px-3 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
-        <textarea
-          aria-label="متن پیام"
-          placeholder="پیامت…"
-          rows={2}
-          value={body}
-          disabled={!profile || sending || loading}
-          onChange={(e) => setBody(e.target.value)}
-          className="max-h-36 min-h-12 flex-1 resize-y rounded-lg border border-input bg-background/60 px-3 py-2 text-sm"
-        />
-        <Button type="submit" size="icon" aria-label="ارسال پیام" title="ارسال پیام"
-          disabled={!profile || !body.trim() || sending || loading}>
-          {sending ? <LoaderCircle className="animate-spin" /> : <Send className="-scale-x-100" />}
-        </Button>
-      </form>
+      <Composer
+        profile={profile}
+        disabled={loading}
+        onSent={(message) => void upsertLiveChatMessages([message], profile!)}
+        onError={setError}
+      />
     </main>
   );
 }
