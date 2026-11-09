@@ -94,7 +94,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     if (location.pathname === "/unlock") return { viewer: null as Viewer | null };
 
     // Native SPA prerender has no browser session or cookies.
-    if (typeof window === "undefined" && import.meta.env.VITE_CAPACITOR_BUILD === "true") {
+    if (typeof window === "undefined" && import.meta.env["VITE_CAPACITOR_BUILD"] === "true") {
       return { viewer: null as Viewer | null };
     }
 
