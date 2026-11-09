@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Home, MessagesSquare, Orbit, Search, Star } from "lucide-react";
+import { Home, MessagesSquare, Orbit, Search, Star, Settings } from "lucide-react";
 
 const items = [
   { to: "/", label: "خانه", icon: Home },
@@ -7,6 +7,7 @@ const items = [
   { to: "/explore", label: "سفر در زمان", icon: Orbit },
   { to: "/search", label: "جستجو", icon: Search },
   { to: "/bookmarks", label: "نشان‌ها", icon: Star },
+  { to: "/settings", label: "تنظیمات", icon: Settings },
 ] as const;
 
 export function BottomNav() {

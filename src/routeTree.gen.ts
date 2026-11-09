@@ -18,6 +18,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MemoriesRouteImport } from './routes/memories'
 import { Route as ReplayRouteImport } from './routes/replay'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ThemeRouteImport } from './routes/theme'
 import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as UnlockRouteImport } from './routes/unlock'
@@ -67,6 +68,11 @@ const SearchRoute = SearchRouteImport.update({
   path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ThemeRoute = ThemeRouteImport.update({
   id: '/theme',
   path: '/theme',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/memories': typeof MemoriesRoute
   '/replay': typeof ReplayRoute
   '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/theme': typeof ThemeRoute
   '/timeline': typeof TimelineRoute
   '/unlock': typeof UnlockRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/memories': typeof MemoriesRoute
   '/replay': typeof ReplayRoute
   '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/theme': typeof ThemeRoute
   '/timeline': typeof TimelineRoute
   '/unlock': typeof UnlockRoute
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/memories': typeof MemoriesRoute
   '/replay': typeof ReplayRoute
   '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/theme': typeof ThemeRoute
   '/timeline': typeof TimelineRoute
   '/unlock': typeof UnlockRoute
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
     | '/memories'
     | '/replay'
     | '/search'
+    | '/settings'
     | '/theme'
     | '/timeline'
     | '/unlock'
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/memories'
     | '/replay'
     | '/search'
+    | '/settings'
     | '/theme'
     | '/timeline'
     | '/unlock'
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/memories'
     | '/replay'
     | '/search'
+    | '/settings'
     | '/theme'
     | '/timeline'
     | '/unlock'
@@ -181,6 +193,7 @@ export interface RootRouteChildren {
   MemoriesRoute: typeof MemoriesRoute
   ReplayRoute: typeof ReplayRoute
   SearchRoute: typeof SearchRoute
+  SettingsRoute: typeof SettingsRoute
   ThemeRoute: typeof ThemeRoute
   TimelineRoute: typeof TimelineRoute
   UnlockRoute: typeof UnlockRoute
@@ -251,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/theme': {
       id: '/theme'
       path: '/theme'
@@ -285,6 +305,7 @@ const rootRouteChildren: RootRouteChildren = {
   MemoriesRoute: MemoriesRoute,
   ReplayRoute: ReplayRoute,
   SearchRoute: SearchRoute,
+  SettingsRoute: SettingsRoute,
   ThemeRoute: ThemeRoute,
   TimelineRoute: TimelineRoute,
   UnlockRoute: UnlockRoute,
