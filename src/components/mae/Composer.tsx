@@ -17,6 +17,21 @@ const emojiGroups = [
   { name: "نمادها", icon: "💯", items: ["💯","💢","💥","💫","💦","💨","💤","🎉","🎊","🎈","🎁","🎀","🏳️‍🌈","♾️","❤️‍🔥","☮️","☯️","✝️","☪️","⚛️","🔱","⚜️","🔰","✅","❌","❗","❓","‼️","⁉️","🔔","🔕"] },
 ];
 
+function ImageFilePreview({ file }: { file: File }) {
+  const [url, setUrl] = useState("");
+
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  return (
+    <img src={url} alt={file.name}
+      className="size-full object-cover" />
+  );
+}
+
 type Props = {
   profile: Profile | null;
   disabled?: boolean;
@@ -114,17 +129,28 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
   function addFiles(list: FileList | null) {
     if (!list) return;
     const incoming = Array.from(list);
+    const imageTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const videoTypes = ["video/webm", "video/mp4"];
+
     const valid = incoming.filter((file) =>
-      file.type.startsWith("image/") || file.type.startsWith("video/")
+      imageTypes.includes(file.type) || videoTypes.includes(file.type)
     );
+
     if (valid.length !== incoming.length) {
-      onError("فقط عکس و ویدیو قابل انتخاب هستند.");
+      onError("فرمت بعضی فایل‌ها پشتیبانی نمی‌شود؛ عکس JPG، PNG، WebP، GIF و ویدیوی MP4 یا WebM انتخاب کن.");
     }
-    const oversized = valid.find((file) => file.size > 25 * 1024 * 1024);
+
+    const oversized = valid.find((file) =>
+      file.size > (file.type.startsWith("video/") ? 25 : 12) * 1024 * 1024
+    );
+
     if (oversized) {
-      onError("حجم هر فایل باید کمتر از ۲۵ مگابایت باشد.");
+      onError(oversized.type.startsWith("video/")
+        ? "حجم هر ویدیو باید حداکثر ۲۵ مگابایت باشد."
+        : "حجم هر عکس باید حداکثر ۱۲ مگابایت باشد.");
       return;
     }
+
     setSelectedFiles((current) => [...current, ...valid].slice(0, 10));
     if (fileInput.current) fileInput.current.value = "";
   }
@@ -141,6 +167,7 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
           : file.type.startsWith("image/") ? "image" : "video";
         const message = await sendMediaMessage(file, kind, profile.id);
         onSent(message);
+        setSelectedFiles(selectedFiles.slice(index + 1));
       }
       setSelectedFiles([]);
       setFileProgress("");
@@ -185,9 +212,7 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
               <div key={`${file.name}-${file.lastModified}-${index}`}
                 className="relative size-24 shrink-0 overflow-hidden rounded-xl border border-border bg-muted">
                 {file.type.startsWith("image/") ? (
-                  <img src={URL.createObjectURL(file)} alt={file.name}
-                    className="size-full object-cover"
-                    onLoad={(event) => URL.revokeObjectURL(event.currentTarget.src)} />
+                  <ImageFilePreview file={file} />
                 ) : (
                   <div className="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground">
                     <Video className="size-7" />

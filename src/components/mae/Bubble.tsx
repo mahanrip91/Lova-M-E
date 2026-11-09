@@ -117,7 +117,7 @@ export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, r
             ) : m.kd === "voice" ? (
               <audio className="w-64 max-w-full" controls preload="none" src={mediaUrl} />
             ) : m.kd === "video" ? (
-              <video className="aspect-square w-52 max-w-full rounded-2xl bg-black object-cover" controls playsInline preload="none" src={mediaUrl} />
+              <video className="aspect-square w-52 max-w-full rounded-full bg-black object-cover" controls playsInline preload="none" src={mediaUrl} />
             ) : (
               <button
               type="button"

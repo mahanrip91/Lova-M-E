@@ -186,7 +186,7 @@ async function syncRemoteArchive() {
   const liveRows: any[] = [];
   for (let base = 0; base < (liveCount ?? 0); base += 1000) {
     const { data, error } = await supabase.from("messages")
-      .select("id,sender_id,body,kind,created_at,reply_to,edited_at")
+      .select("id,sender_id,body,kind,media_path,created_at,reply_to,edited_at")
       .order("created_at", { ascending: true }).order("id", { ascending: true })
       .range(base, base + 999);
     if (error) throw error;
@@ -220,6 +220,7 @@ async function syncRemoteArchive() {
       k: `LIVE:${side}`, x: r.body ?? "", kd: kindMap[r.kind] ?? "nontext",
       o: 0
     };
+    if (r.media_path) m.mediaPath = r.media_path;
     if (r.reply_to) m.r = `live:${r.reply_to}`;
     if (r.edited_at) m.e = 1;
     return m;
