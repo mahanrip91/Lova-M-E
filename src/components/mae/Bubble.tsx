@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Forward, Image as ImageIcon, Mic, Music, Paperclip, Pencil, Smile, Star, Video, Film, Box, MoreVertical, Copy, Trash2, Share2, Edit3 } from "lucide-react";
+import { Forward, Image as ImageIcon, Mic, Music, Paperclip, Pencil, Smile, Star, Video, Film, Box, MoreVertical, Copy, Trash2, Share2, Edit3, Play, Pause, Volume2 } from "lucide-react";
 import type { Msg } from "@/lib/mae/parse";
 import { fmtTime } from "@/lib/mae/time";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,177 @@ const kindLabel: Record<string, { label: string; icon: typeof ImageIcon }> = {
   post: { label: "پست روبینو", icon: Box },
   nontext: { label: "پیام غیرمتنی (رسانه در خروجی نیامده)", icon: Box },
 };
+
+
+export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video" }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    setPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+  }, [src, kind]);
+
+  const timeLabel = (value: number) => {
+    if (!Number.isFinite(value) || value < 0) return "۰:۰۰";
+    const minutes = Math.floor(value / 60);
+    const seconds = Math.floor(value % 60).toString().padStart(2, "0");
+    return `${minutes}:${seconds}`;
+  };
+
+  const togglePlayback = () => {
+    const element = kind === "video" ? videoRef.current : audioRef.current;
+    if (!element) return;
+
+    if (element.paused) {
+      void element.play().catch(() => setPlaying(false));
+    } else {
+      element.pause();
+    }
+  };
+
+  const seek = (value: number) => {
+    const element = kind === "video" ? videoRef.current : audioRef.current;
+    if (!element || !Number.isFinite(value)) return;
+    element.currentTime = value;
+    setCurrentTime(value);
+  };
+
+  if (kind === "voice") {
+    return (
+      <div className="w-full min-w-0 overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/15 via-background/95 to-fuchsia-500/10 p-3 shadow-lg shadow-primary/5">
+        <audio
+          ref={audioRef}
+          src={src}
+          preload="metadata"
+          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={() => setPlaying(false)}
+          className="hidden"
+        />
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={togglePlayback}
+            className="grid size-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-fuchsia-500 text-white shadow-lg shadow-primary/25"
+            aria-label={playing ? "توقف موقت پیام صوتی" : "پخش پیام صوتی"}
+          >
+            {playing
+              ? <Pause className="size-5 fill-current" />
+              : <Play className="ms-0.5 size-5 fill-current" />}
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold">
+                <Volume2 className="size-3.5 text-primary" />
+                پیام صوتی
+              </span>
+              <span className="text-[10px] tabular-nums text-muted-foreground">
+                {timeLabel(currentTime)} / {timeLabel(duration)}
+              </span>
+            </div>
+
+            <div className="mb-2 flex h-7 items-center gap-[3px]" aria-hidden="true">
+              {[9,16,12,22,14,26,17,11,24,15,20,10,25,14,19,8,22,13,17,10,24,15,19,11].map((height, index) => (
+                <span
+                  key={index}
+                  className={`flex-1 rounded-full ${index / 24 <= (duration ? currentTime / duration : 0) ? "bg-primary" : "bg-primary/25"}`}
+                  style={{ height: `${height}px` }}
+                />
+              ))}
+            </div>
+
+            <input
+              aria-label="موقعیت پیام صوتی"
+              type="range"
+              min={0}
+              max={duration || 0}
+              step="0.1"
+              value={Math.min(currentTime, duration || 0)}
+              disabled={!duration}
+              onChange={(e) => seek(Number(e.currentTarget.value))}
+              className="h-1.5 w-full cursor-pointer accent-primary disabled:opacity-40"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-xl shadow-primary/10">
+      <video
+        ref={videoRef}
+        src={src}
+        playsInline
+        preload="metadata"
+        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        onClick={togglePlayback}
+        className="aspect-video max-h-[360px] w-full bg-black object-contain"
+      />
+
+      {!playing && (
+        <button
+          type="button"
+          onClick={togglePlayback}
+          className="absolute inset-0 grid place-items-center bg-black/15"
+          aria-label="پخش ویدیو"
+        >
+          <span className="grid size-16 place-items-center rounded-full border border-white/30 bg-black/45 text-white shadow-2xl backdrop-blur-md">
+            <Play className="ms-1 size-7 fill-current" />
+          </span>
+        </button>
+      )}
+
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-3 pb-3 pt-8 text-white">
+        <div className="mb-2 flex items-center justify-between text-[10px]">
+          <span className="flex items-center gap-1.5 font-semibold">
+            <Video className="size-3.5" />
+            ویدیو مسیج
+          </span>
+          <span className="tabular-nums">
+            {timeLabel(currentTime)} / {timeLabel(duration)}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={togglePlayback}
+            className="grid size-8 shrink-0 place-items-center rounded-full bg-white/15"
+            aria-label={playing ? "توقف موقت ویدیو" : "پخش ویدیو"}
+          >
+            {playing ? <Pause className="size-4" /> : <Play className="ms-0.5 size-4" />}
+          </button>
+
+          <input
+            aria-label="موقعیت ویدیو"
+            type="range"
+            min={0}
+            max={duration || 0}
+            step="0.1"
+            value={Math.min(currentTime, duration || 0)}
+            disabled={!duration}
+            onChange={(e) => seek(Number(e.currentTarget.value))}
+            className="h-1.5 min-w-0 flex-1 cursor-pointer accent-fuchsia-400 disabled:opacity-40"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export interface BubbleProps {
   m: Msg;
@@ -108,37 +279,36 @@ export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, r
                 type="button"
                 onClick={() => void revealMedia()}
                 disabled={mediaLoading}
-                className="flex w-full items-center gap-3 rounded-xl border border-primary/20 bg-background/60 px-4 py-3 text-start transition hover:border-primary/50 hover:bg-primary/5 disabled:opacity-60"
+                className="group flex w-full items-center gap-3 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background/90 to-fuchsia-500/10 p-3 text-start shadow-sm transition hover:border-primary/45 hover:shadow-lg hover:shadow-primary/5 disabled:opacity-60"
               >
-                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
-                  {mediaLoading ? <span className="animate-spin">◌</span> : m.kd === "voice" ? "▶" : m.kd === "video" ? "🎬" : "▧"}
+                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-fuchsia-500 text-white shadow-lg shadow-primary/20">
+                  {mediaLoading
+                    ? <span className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    : m.kd === "voice" ? <Mic className="size-5" />
+                    : m.kd === "video" ? <Video className="size-5" />
+                    : <ImageIcon className="size-5" />}
                 </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold">
-                    {mediaLoading ? "در حال دریافت…" : mediaError ? "تلاش دوباره" : "برای دریافت و نمایش لمس کن"}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold">
+                    {mediaLoading ? "در حال دریافت رسانه…" : mediaError ? "دریافت ناموفق بود" : m.kd === "voice" ? "پیام صوتی" : m.kd === "video" ? "ویدیو مسیج" : "تصویر پیام"}
                   </span>
-                  <span className="block text-[11px] text-muted-foreground">
-                    {mediaError || "دریافت فقط با درخواست تو · نگهداری نسخهٔ محلی"}
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    {mediaError || (mediaLoading ? "کمی صبر کن…" : "برای دریافت و پخش لمس کن")}
                   </span>
                 </span>
+                <span className="text-primary transition group-hover:-translate-x-0.5">←</span>
               </button>
-            ) : m.kd === "voice" ? (
-              <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-fuchsia-500/10 p-3 shadow-inner"><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-primary"><Mic className="size-4" /> پیام صوتی</div><audio className="w-full max-w-full accent-primary" controls preload="metadata" src={mediaUrl} /></div>
-            ) : m.kd === "video" ? (
-              <div className="overflow-hidden rounded-2xl border border-primary/20 bg-black shadow-xl"><video className="max-h-80 w-full rounded-2xl bg-black object-contain" controls playsInline preload="metadata" src={mediaUrl} /></div>
+            ) : m.kd === "voice" || m.kd === "video" ? (
+              <MediaPlayer src={mediaUrl} kind={m.kd} />
             ) : (
               <button
-              type="button"
-              onClick={() => setImageExpanded(true)}
-              className="block max-w-full overflow-hidden rounded-xl"
-              aria-label="نمایش تمام‌صفحه تصویر"
-            >
-              <img
-                className="max-h-80 max-w-full rounded-xl object-contain"
-                src={mediaUrl}
-                alt="رسانهٔ پیام"
-              />
-            </button>
+                type="button"
+                onClick={() => setImageExpanded(true)}
+                className="block max-w-full overflow-hidden rounded-xl"
+                aria-label="نمایش تمام‌صفحه تصویر"
+              >
+                <img className="max-h-80 max-w-full rounded-xl object-contain" src={mediaUrl} alt="رسانهٔ پیام" />
+              </button>
             )}
           </div>
         )}

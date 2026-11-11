@@ -354,6 +354,17 @@ function Chat() {
         disabled={loading}
         onSent={(message) => void upsertLiveChatMessages([message], profile!)}
         onError={setError}
+        onVideoRecordingStarted={() => {
+          window.requestAnimationFrame(() => {
+            const element = scrollRef.current;
+            if (element) {
+              element.scrollTo({
+                top: element.scrollHeight,
+                behavior: "smooth"
+              });
+            }
+          });
+        }}
       />
     </main>
   );

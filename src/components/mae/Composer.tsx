@@ -6,6 +6,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { sendMediaMessage, sendTextMessage } from "@/lib/chat/api";
 import type { ChatMessage, Profile } from "@/lib/chat/types";
+import { MediaPlayer } from "@/components/mae/Bubble";
 
 
 
@@ -29,9 +30,10 @@ type Props = {
   disabled?: boolean;
   onSent: (message: ChatMessage) => void;
   onError: (message: string) => void;
+  onVideoRecordingStarted?: () => void;
 };
 
-export function Composer({ profile, disabled, onSent, onError }: Props) {
+export function Composer({ profile, disabled, onSent, onError, onVideoRecordingStarted }: Props) {
   const [body, setBody] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [sending, setSending] = useState(false);
@@ -82,7 +84,10 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
           : { audio: true, video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } } }
       );
       stream.current = mediaStream;
-      if (kind === "video") setCameraStream(mediaStream);
+      if (kind === "video") {
+        setCameraStream(mediaStream);
+        onVideoRecordingStarted?.();
+      }
 
       const candidates = kind === "voice"
         ? ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"]
@@ -218,14 +223,12 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
             </header>
             <div className="flex min-h-48 items-center justify-center bg-black p-3">
               {capturedMedia.kind === "video" ? (
-                <video src={capturedMedia.url} controls playsInline className="max-h-[65vh] w-full rounded-2xl object-contain" />
+                <div className="w-full max-w-md">
+                  <MediaPlayer src={capturedMedia.url} kind="video" />
+                </div>
               ) : (
-                <div className="w-full rounded-2xl bg-gradient-to-br from-primary/20 via-background to-fuchsia-500/20 p-6 text-center">
-                  <div className="mx-auto mb-4 grid size-20 place-items-center rounded-full bg-primary/15 text-primary ring-1 ring-primary/30">
-                    <Mic className="size-9" />
-                  </div>
-                  <p className="mb-4 font-semibold">پیام صوتی آمادهٔ ارسال</p>
-                  <audio src={capturedMedia.url} controls className="w-full" />
+                <div className="w-full max-w-md p-2">
+                  <MediaPlayer src={capturedMedia.url} kind="voice" />
                 </div>
               )}
             </div>
