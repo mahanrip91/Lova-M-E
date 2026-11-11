@@ -281,9 +281,6 @@ export async function upsertLiveChatMessages(rows: ChatMessage[], profile: Profi
     };
 
     const uid = `live:${row.id}`;
-    if (seen.has(uid)) continue;
-    seen.add(uid);
-
     const message: Msg = {
       u: uid,
       s: "LIVE",
@@ -294,11 +291,12 @@ export async function upsertLiveChatMessages(rows: ChatMessage[], profile: Profi
       o: 0
     };
     if (row.media_path) message.mediaPath = row.media_path;
-
     if (row.reply_to) message.r = `live:${row.reply_to}`;
     if (row.edited_at) message.e = 1;
 
-    messages.push(message);
+    const existingIndex = messages.findIndex((item) => item.u === uid);
+    if (existingIndex >= 0) messages[existingIndex] = message;
+    else messages.push(message);
   }
 
   const liveMessages = messages.filter((m) => m.s === "LIVE");
@@ -523,18 +521,20 @@ export function initStore() {
       const p = applyPresets(events ?? [], { ...defaultSettings(), ...(settings ?? {}) });
       if (p.changed) await Promise.all([set("mae:events", p.events), set("mae:settings", p.settings)]);
       setState({
-        status: msgs.length ? "ready" : "empty", messages: msgs, sources: sources ?? [], sides: sd,
+        status: "loading", messages: msgs, sources: sources ?? [], sides: sd,
         bookmarks: bookmarks ?? [], events: p.events, settings: p.settings, ...derive(msgs, sd),
       });
 
-      // همگام‌سازی آرشیو از سرور؛ در قطع اینترنت کش محلی حفظ می‌شود.
       try {
         await syncRemoteArchiveAfterLogin();
       } catch (error) {
         console.warn("M AND E remote archive sync failed:", error);
+      } finally {
+        setState({ status: state.messages.length ? "ready" : "empty" });
       }
-    } catch {
-      setState({ status: "empty" });
+    } catch (error) {
+      console.warn("M AND E local store initialization failed:", error);
+      setState({ status: state.messages.length ? "ready" : "empty" });
     }
   })();
 }

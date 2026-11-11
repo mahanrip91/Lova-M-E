@@ -5,6 +5,9 @@ import { fmtTime } from "@/lib/mae/time";
 import { cn } from "@/lib/utils";
 import { useViewer } from "@/lib/mae/viewer";
 import { getChatMediaBlob } from "@/lib/chat/api";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 
 const kindLabel: Record<string, { label: string; icon: typeof ImageIcon }> = {
   image: { label: "عکس", icon: ImageIcon },
@@ -41,7 +44,6 @@ export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, r
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState("");
   const [imageExpanded, setImageExpanded] = useState(false);
-  const [actionsOpen, setActionsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
 
@@ -168,67 +170,58 @@ export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, r
         {m.x && <p className="whitespace-pre-wrap break-words">{m.x}</p>}
 
         <div className="absolute -top-3 end-1 z-20">
-          <button
-            type="button"
-            onClick={() => setActionsOpen((v) => !v)}
-            className="grid size-8 place-items-center rounded-full border border-white/10 bg-background/95 text-muted-foreground shadow-lg backdrop-blur"
-            aria-label="عملیات پیام"
-            aria-expanded={actionsOpen}
-          >
-            <MoreVertical className="size-4" />
-          </button>
-          {actionsOpen && (
-            <div className="absolute end-0 top-9 z-50 min-w-48 overflow-hidden rounded-2xl border border-border bg-popover p-1 text-popover-foreground shadow-2xl">
-              <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm hover:bg-muted"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(m.x || "");
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 1500);
-                  } catch {
-                    const area = document.createElement("textarea");
-                    area.value = m.x || "";
-                    document.body.appendChild(area);
-                    area.select();
-                    document.execCommand("copy");
-                    area.remove();
-                    setCopied(true);
-                  }
-                  setActionsOpen(false);
-                }}>
-                <Copy className="size-4" /> {copied ? "کپی شد" : "کپی متن"}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button"
+                className="grid size-8 place-items-center rounded-full border border-white/10 bg-background/95 text-muted-foreground shadow-lg backdrop-blur"
+                aria-label="عملیات پیام">
+                <MoreVertical className="size-4" />
               </button>
-              <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm hover:bg-muted"
-                onClick={async () => {
-                  const text = m.x || `${k?.label || "پیام رسانه‌ای"} · ${fmtTime(m.t)}`;
-                  try {
-                    if (navigator.share) await navigator.share({ text });
-                    else await navigator.clipboard.writeText(text);
-                  } catch {}
-                  setActionsOpen(false);
-                }}>
-                <Share2 className="size-4" /> اشتراک‌گذاری
-              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="top" className="z-[200] min-w-48">
+              <DropdownMenuItem onSelect={async () => {
+                try {
+                  await navigator.clipboard.writeText(m.x || "");
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                } catch {
+                  const area = document.createElement("textarea");
+                  area.value = m.x || "";
+                  document.body.appendChild(area);
+                  area.select();
+                  document.execCommand("copy");
+                  area.remove();
+                  setCopied(true);
+                }
+              }}>
+                <Copy className="me-2 size-4" /> {copied ? "کپی شد" : "کپی متن"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={async () => {
+                const text = m.x || `${k?.label || "پیام رسانه‌ای"} · ${fmtTime(m.t)}`;
+                try {
+                  if (navigator.share) await navigator.share({ text });
+                  else await navigator.clipboard.writeText(text);
+                } catch {}
+              }}>
+                <Share2 className="me-2 size-4" /> اشتراک‌گذاری
+              </DropdownMenuItem>
               {onBookmark && (
-                <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm hover:bg-muted"
-                  onClick={() => { onBookmark(); setActionsOpen(false); }}>
-                  <Star className="size-4" /> {bookmarked ? "برداشتن نشان" : "ذخیره در نشان‌شده‌ها"}
-                </button>
+                <DropdownMenuItem onSelect={() => onBookmark()}>
+                  <Star className="me-2 size-4" /> {bookmarked ? "برداشتن نشان" : "ذخیره در نشان‌شده‌ها"}
+                </DropdownMenuItem>
               )}
               {canEdit && onEdit && (
-                <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm hover:bg-muted"
-                  onClick={() => { setActionsOpen(false); onEdit(); }}>
-                  <Edit3 className="size-4" /> ویرایش پیام
-                </button>
+                <DropdownMenuItem onSelect={() => onEdit()}>
+                  <Edit3 className="me-2 size-4" /> ویرایش پیام
+                </DropdownMenuItem>
               )}
               {canEdit && onDelete && (
-                <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm text-destructive hover:bg-destructive/10"
-                  onClick={() => { setActionsOpen(false); onDelete(); }}>
-                  <Trash2 className="size-4" /> حذف پیام
-                </button>
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => onDelete()}>
+                  <Trash2 className="me-2 size-4" /> حذف پیام
+                </DropdownMenuItem>
               )}
-            </div>
-          )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">

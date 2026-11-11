@@ -47,6 +47,17 @@ function Home() {
     if (s) navigate({ to: "/replay", search: { from: s.from, to: s.to, title: "یک خاطره‌ی تصادفی", kind: "random" } });
   };
 
+  if (status === "loading") {
+    return (
+      <main className="mx-auto flex min-h-[60dvh] max-w-3xl items-center justify-center px-4">
+        <div className="text-center">
+          <div className="mx-auto mb-3 size-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+          <p className="text-sm text-muted-foreground">در حال بارگذاری خاطره‌ها…</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-3xl px-4 pt-8">
       <header className="anim-rise flex items-center justify-between">

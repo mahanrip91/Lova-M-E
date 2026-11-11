@@ -118,6 +118,10 @@ function Chat() {
           if (!active) return;
           setConnection(status);
           if (status === "SUBSCRIBED") void refresh();
+        }, (message) => {
+          if (active) void updateLiveMessageInStore(message);
+        }, (id) => {
+          if (active) void removeLiveMessageFromStore(id);
         });
 
         await refresh();

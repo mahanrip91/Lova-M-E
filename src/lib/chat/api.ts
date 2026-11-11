@@ -150,10 +150,19 @@ export function mergeMessages(current: ChatMessage[], incoming: ChatMessage[]): 
 export function subscribeMessages(
   onInsert: (message: ChatMessage) => void,
   onStatus?: (status: string) => void,
+  onUpdate?: (message: ChatMessage) => void,
+  onDelete?: (id: string) => void,
 ) {
   const channel = supabase.channel(`mae-live-${crypto.randomUUID()}`)
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" },
       (payload) => onInsert(payload.new as ChatMessage))
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" },
+      (payload) => onUpdate?.(payload.new as ChatMessage))
+    .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" },
+      (payload) => {
+        const old = payload.old as { id?: string };
+        if (old.id) onDelete?.(old.id);
+      })
     .subscribe((status) => onStatus?.(status));
 
   return () => { void supabase.removeChannel(channel); };
