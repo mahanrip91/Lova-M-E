@@ -168,6 +168,7 @@ interface State {
   uidIndex: Map<string, number>;
   sessions: Session[];
   days: DayStat[];
+  archiveDays: DayStat[];
 }
 
 let state: State = {
@@ -181,6 +182,7 @@ let state: State = {
   uidIndex: new Map(),
   sessions: [],
   days: [],
+  archiveDays: [],
 };
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
@@ -270,33 +272,37 @@ async function syncRemoteArchive() {
   if (count !== expected)
     throw new Error(`تعداد آرشیو با منابع برابر نیست: ${count} / ${expected}`);
 
-  type RemoteRow = {
-    uid: string;
-    source_id: string;
-    occurred_at: string;
-    sender_key: string;
-    body: string | null;
-    kind: string;
-    original_order: number;
-    reply_uid: string | null;
-    media_label: string | null;
-    is_edited: boolean;
-    is_forwarded: boolean;
+  // تقویم فقط آمار می‌گیرد؛ متن پیام‌ها دانلود نمی‌شود.
+  const { data: statRows, error: statsError } = await supabase.rpc(
+    "get_archive_day_stats",
+    { p_source_id: null },
+  );
+  if (statsError) throw statsError;
+
+  type ArchiveDayStatRow = {
+    day: string;
+    total: number | string;
+    m_count: number | string;
+    e_count: number | string;
+    o_count: number | string;
+    hours?: unknown;
   };
 
-  const { data: latestRows, error: latestError } = await supabase
-    .from("archive_messages")
-    .select(
-      "uid,source_id,occurred_at,sender_key,body,kind,original_order,reply_uid,media_label,is_edited,is_forwarded",
-    )
-    .order("occurred_at", { ascending: false })
-    .order("uid", { ascending: false })
-    .range(0, ARCHIVE_PAGE_SIZE - 1);
+  const archiveDays: DayStat[] = (statRows ?? []).map((r: ArchiveDayStatRow) => ({
+    day: String(r.day),
+    total: Number(r.total),
+    M: Number(r.m_count),
+    E: Number(r.e_count),
+    O: Number(r.o_count),
+    first: 0,
+    hours: Array.isArray(r.hours)
+      ? r.hours.map(Number)
+      : new Array(24).fill(0),
+  }));
 
-  if (latestError) throw latestError;
-
-  const raw: RemoteRow[] = [...(latestRows ?? [])].reverse() as RemoteRow[];
-  archiveOffset = raw.length;
+  // پیام‌های آرشیو در شروع برنامه دانلود نمی‌شوند.
+  // فقط با انتخاب تاریخ، محتوای همان بازه دریافت می‌شود.
+  archiveOffset = 0;
   archiveTotal = count ?? 0;
 
   const kindMap: Record<string, Msg["kd"]> = {
@@ -312,22 +318,7 @@ async function syncRemoteArchive() {
     nontext: "nontext",
   };
 
-  const messages: Msg[] = raw.map((r) => {
-    const m: Msg = {
-      u: `archive:${r.uid}`,
-      s: r.source_id,
-      t: Date.parse(r.occurred_at),
-      k: `${r.source_id}:${r.sender_key}`,
-      x: r.body ?? "",
-      kd: kindMap[r.kind] ?? "nontext",
-      o: Number(r.original_order),
-    };
-    if (r.reply_uid) m.r = `archive:${r.reply_uid}`;
-    if (r.media_label) m.m = r.media_label;
-    if (r.is_edited) m.e = 1;
-    if (r.is_forwarded) m.f = 1;
-    return m;
-  });
+  const messages: Msg[] = [];
 
   // پیام‌های زنده نیز به همان جریان زمانی اضافه می‌شوند.
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
@@ -414,15 +405,17 @@ async function syncRemoteArchive() {
     set("mae:sides", sides),
     set("mae:events", p.events),
     set("mae:settings", p.settings),
+    set("mae:archive-days", archiveDays),
   ]);
 
   setState({
-    status: allMessages.length ? "ready" : "empty",
+    status: expected + liveMessages.length > 0 ? "ready" : "empty",
     messages: allMessages,
     sources: allSources,
     sides,
     events: p.events,
     settings: p.settings,
+    archiveDays,
     ...derive(allMessages, sides),
   });
   remoteSynced = true;
@@ -628,8 +621,8 @@ export async function loadOlderArchiveMessages(): Promise<number> {
 export async function ensureArchiveRange(from: number, to: number): Promise<number> {
   if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return 0;
 
-  const startAt = new Date(from - 6 * 60 * 60 * 1000).toISOString();
-  const endAt = new Date(to + 6 * 60 * 60 * 1000).toISOString();
+  const startAt = new Date(from).toISOString();
+  const endAt = new Date(to).toISOString();
   const pageSize = 1000;
   const rows: ArchiveMessageRow[] = [];
 
@@ -702,13 +695,14 @@ export function initStore() {
   started = true;
   (async () => {
     try {
-      const [messages, sources, sides, bookmarks, events, settings] = await Promise.all([
+      const [messages, sources, sides, bookmarks, events, settings, archiveDays] = await Promise.all([
         get<Msg[]>("mae:messages"),
         get<Source[]>("mae:sources"),
         get("mae:sides"),
         get<string[]>("mae:bookmarks"),
         get<MemoryEvent[]>("mae:events"),
         get<Settings>("mae:settings"),
+        get<DayStat[]>("mae:archive-days"),
       ]);
       const msgs = messages ?? [];
       const sd = (sides as Record<string, SideEntry>) ?? {};
@@ -716,13 +710,14 @@ export function initStore() {
       if (p.changed)
         await Promise.all([set("mae:events", p.events), set("mae:settings", p.settings)]);
       setState({
-        status: msgs.length ? "ready" : "empty",
+        status: msgs.length || (sources?.length ?? 0) ? "ready" : "empty",
         messages: msgs,
         sources: sources ?? [],
         sides: sd,
         bookmarks: bookmarks ?? [],
         events: p.events,
         settings: p.settings,
+        archiveDays: archiveDays ?? [],
         ...derive(msgs, sd),
       });
 

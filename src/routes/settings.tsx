@@ -146,6 +146,22 @@ function SettingsPage() {
     <main className="mx-auto max-w-3xl px-4 pb-32">
       <PageHeader title="تنظیمات" subtitle="مدیریت برنامه و دسترسی‌ها" />
 
+      <section className="mb-4 grid gap-3 sm:grid-cols-3">
+        <Link to="/import" className="glass rounded-3xl p-4">
+          <h2 className="font-bold">مدیریت آرشیو</h2>
+          <p className="mt-1 text-xs text-muted-foreground">منابع، فرستنده‌ها و وضعیت آرشیو</p>
+        </Link>
+        <Link to="/theme" className="glass rounded-3xl p-4">
+          <h2 className="font-bold">تم و رنگ‌ها</h2>
+          <p className="mt-1 text-xs text-muted-foreground">ساخت، ذخیره و اشتراک تم</p>
+        </Link>
+        <Link to="/switch-user" className="glass rounded-3xl p-4">
+          <h2 className="font-bold">تعویض کاربر</h2>
+          <p className="mt-1 text-xs text-muted-foreground">تغییر پروفایل ماهان یا الیسا</p>
+        </Link>
+      </section>
+
+
       <section className="glass mb-4 rounded-3xl p-4">
         <div className="mb-4 flex items-center gap-3">
           <Smartphone className="size-6 text-primary" />

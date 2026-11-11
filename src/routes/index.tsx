@@ -236,17 +236,6 @@ function Home() {
         </Link>
       </div>
 
-      <div className="mt-8 flex flex-wrap gap-2 text-sm">
-        <Link to="/chat" search={{ u: "", at: 0 }} className="glass rounded-full px-4 py-2">
-          چت یکپارچه
-        </Link>
-        <Link to="/import" className="glass rounded-full px-4 py-2">
-          مدیریت و ورود آرشیو
-        </Link>
-        <Link to="/theme" className="glass rounded-full px-4 py-2">
-          تم و رنگ‌ها · تعویض کاربر
-        </Link>
-      </div>
       <p className="mt-6 pb-4 text-center text-[11px] text-muted-foreground">
         آرشیو خاطرات فقط روی همین دستگاه می‌ماند و جایی ارسال نمی‌شود.
       </p>

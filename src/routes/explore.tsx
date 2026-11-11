@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { useStore } from "@/lib/mae/store";
-import { JALALI_MONTHS, dayStartMs, fa, fmtDate, jalaliMonthLength, jalaliOf, DAY_MS } from "@/lib/mae/time";
+import { JALALI_MONTHS, dayKey, dayStartMs, fa, fmtDate, fmtTime, jalaliMonthLength, jalaliOf, DAY_MS } from "@/lib/mae/time";
 import { PageHeader } from "@/components/mae/Nav";
 import { JalaliDateTimeInput } from "@/components/mae/JalaliInput";
 import type { DayStat } from "@/lib/mae/analysis";
@@ -25,7 +25,7 @@ interface Month { jy: number; jm: number; days: Map<number, DayStat>; total: num
 
 function Explore() {
   const status = useStore((s) => s.status);
-  const days = useStore((s) => s.days);
+  const days = useStore((s) => s.archiveDays);
   const navigate = useNavigate();
   const months = useMemo(() => {
     const map = new Map<string, Month>();
@@ -46,7 +46,7 @@ function Explore() {
   useEffect(() => { if (days.length && !sel) { setSel(days[0]!.day); setJumpAt(dayStartMs(days[0]!.day)); } }, [days, sel]);
 
   if (status === "loading") return <p className="p-8 text-center text-muted-foreground">در حال بارگذاری…</p>;
-  if (status === "empty") return <p className="p-8 text-center">ابتدا آرشیو را <Link to="/import" className="text-primary underline">وارد کن</Link>.</p>;
+  if (!days.length) return <p className="p-8 text-center text-muted-foreground">آمار آرشیو هنوز دریافت نشده؛ اتصال اینترنت را بررسی کن و دوباره وارد شو.</p>;
 
   const month = months[Math.min(mi, months.length - 1)]!;
   const selDay = days.find((d) => d.day === sel) ?? null;
@@ -138,10 +138,16 @@ function Explore() {
             <h2 className="font-display text-2xl">{fmtDate(dayStartMs(selDay.day))}</h2>
             <span className="text-xs text-muted-foreground">{fa(selDay.total)} پیام · ماهان {fa(selDay.M)} · الیسا {fa(selDay.E)}</span>
           </div>
-          <HourWheel day={selDay} onHour={(h) => navigate({ to: "/timeline", search: { at: dayStartMs(selDay.day) + h * 3600000 } })} />
+          <HourWheel day={selDay} onHour={(h) => {
+            const from = dayStartMs(selDay.day) + h * 3600000;
+            navigate({
+              to: "/replay",
+              search: { from, to: from + 3600000 - 1, title: `${fmtDate(from)} · ${fa(h)}:۰۰`, kind: "hour" },
+            });
+          }} />
           <div className="mt-3 flex flex-wrap gap-2">
             <Link to="/replay" search={{ from: dayStartMs(selDay.day), to: dayStartMs(selDay.day) + DAY_MS - 1, title: fmtDate(dayStartMs(selDay.day)), kind: "day" }} className="flex items-center gap-1 rounded-full bg-love px-4 py-2 text-sm text-primary-foreground"><Play className="size-4" /> پخش این روز</Link>
-            <Link to="/timeline" search={{ at: dayStartMs(selDay.day) }} className="rounded-full border border-border px-4 py-2 text-sm">در تایم‌لاین</Link>
+            <Link to="/replay" search={{ from: dayStartMs(selDay.day), to: dayStartMs(selDay.day) + DAY_MS - 1, title: fmtDate(dayStartMs(selDay.day)), kind: "day" }} className="rounded-full border border-border px-4 py-2 text-sm">بازکردن پیام‌های این روز</Link>
           </div>
         </section>
       )}
@@ -149,7 +155,13 @@ function Explore() {
       <section className="glass mt-4 rounded-3xl p-4">
         <h2 className="mb-2 font-bold">پرش به تاریخ و ساعت دقیق</h2>
         <JalaliDateTimeInput label="تاریخ و ساعت (شمسی، وقت تهران)" value={jumpAt} onChange={setJumpAt} />
-        <button type="button" onClick={() => navigate({ to: "/timeline", search: { at: jumpAt } })} className="mt-3 rounded-full bg-love px-5 py-2 text-sm text-primary-foreground">برو</button>
+        <button type="button" onClick={() => {
+          const from = dayStartMs(dayKey(jumpAt)) + jalaliOf(jumpAt).h * 3600000;
+          navigate({
+            to: "/replay",
+            search: { from, to: from + 3600000 - 1, title: `${fmtDate(jumpAt)} · ${fmtTime(jumpAt)}`, kind: "hour" },
+          });
+        }} className="mt-3 rounded-full bg-love px-5 py-2 text-sm text-primary-foreground">برو</button>
       </section>
     </main>
   );

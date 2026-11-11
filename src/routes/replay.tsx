@@ -88,7 +88,7 @@ function Replay() {
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }); }, [idx]);
 
   if (status === "loading") return <p className="p-8 text-center text-muted-foreground">در حال بارگذاری…</p>;
-  if (status === "empty") return <p className="p-8 text-center">ابتدا آرشیو را <Link to="/import" className="text-primary underline">وارد کن</Link>.</p>;
+  if (status === "empty" && sources.length === 0) return <p className="p-8 text-center">ابتدا آرشیو را <Link to="/import" className="text-primary underline">وارد کن</Link>.</p>;
 
   const first = msgs[0];
   const firstSide = first ? sides[first.k]?.side : undefined;
