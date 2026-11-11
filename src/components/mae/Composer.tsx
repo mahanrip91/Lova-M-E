@@ -129,10 +129,7 @@ export function Composer({
             },
       );
       stream.current = mediaStream;
-      if (kind === "video") {
-        setCameraStream(mediaStream);
-        onVideoRecordingStarted?.();
-      }
+      if (kind === "video") setCameraStream(mediaStream);
 
       const candidates =
         kind === "voice"
@@ -177,6 +174,14 @@ export function Composer({
       mediaRecorder.start(250);
       recordingStartedAt.current = performance.now();
       setRecording(kind);
+
+      if (kind === "video") {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            onVideoRecordingStarted?.();
+          });
+        });
+      }
     } catch (error) {
       stopStream();
       onError(error instanceof Error ? error.message : "دسترسی به میکروفون یا دوربین ممکن نشد.");

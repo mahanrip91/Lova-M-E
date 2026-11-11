@@ -13,6 +13,8 @@ import {
   Box,
   MoreVertical,
   Copy,
+  Check,
+  CheckCheck,
   Trash2,
   Share2,
   Edit3,
@@ -269,6 +271,7 @@ export interface BubbleProps {
   canEdit?: boolean | undefined;
   onEdit?: (() => void) | undefined;
   onDelete?: (() => void) | undefined;
+  receipt?: "sent" | "delivered" | "read" | undefined;
 }
 
 export const Bubble = memo(function Bubble({
@@ -286,6 +289,7 @@ export const Bubble = memo(function Bubble({
   canEdit,
   onEdit,
   onDelete,
+  receipt,
 }: BubbleProps) {
   const viewer = useViewer() ?? "M";
   const [mediaUrl, setMediaUrl] = useState("");
@@ -524,6 +528,31 @@ export const Bubble = memo(function Bubble({
             <span className="rounded-full bg-background/50 px-1.5">{sourceLabel}</span>
           )}
           <span>{fmtTime(m.t)}</span>
+          {receipt && m.s === "LIVE" && mine && (
+            <span
+              title={
+                receipt === "read"
+                  ? "دیده‌شده"
+                  : receipt === "delivered"
+                    ? "تحویل‌شده"
+                    : "ارسال‌شده"
+              }
+              aria-label={
+                receipt === "read"
+                  ? "دیده‌شده"
+                  : receipt === "delivered"
+                    ? "تحویل‌شده"
+                    : "ارسال‌شده"
+              }
+              className={receipt === "read" ? "text-sky-400" : ""}
+            >
+              {receipt === "sent" ? (
+                <Check className="size-3" />
+              ) : (
+                <CheckCheck className="size-3" />
+              )}
+            </span>
+          )}
           {onBookmark && (
             <button
               type="button"

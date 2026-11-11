@@ -3,7 +3,7 @@ import { Home, MessagesSquare, Orbit, Search, Star, Settings } from "lucide-reac
 
 const items = [
   { to: "/", label: "خانه", icon: Home },
-  { to: "/timeline", label: "تایم‌لاین", icon: MessagesSquare },
+  { to: "/timeline", label: "چت", icon: MessagesSquare },
   { to: "/explore", label: "سفر در زمان", icon: Orbit },
   { to: "/search", label: "جستجو", icon: Search },
   { to: "/bookmarks", label: "نشان‌ها", icon: Star },
@@ -12,7 +12,10 @@ const items = [
 
 export function BottomNav() {
   return (
-    <nav aria-label="ناوبری اصلی" className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+    <nav
+      aria-label="ناوبری اصلی"
+      className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+    >
       <ul className="glass mx-auto flex max-w-lg items-center justify-around rounded-full px-2 py-1.5">
         {items.map(({ to, label, icon: Icon }) => (
           <li key={to}>
@@ -31,7 +34,15 @@ export function BottomNav() {
   );
 }
 
-export function PageHeader({ title, subtitle, children }: { title: string; subtitle?: string; children?: React.ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children?: React.ReactNode;
+}) {
   return (
     <header className="mx-auto flex max-w-3xl items-end justify-between gap-3 px-4 pt-8 pb-4">
       <div className="anim-rise">

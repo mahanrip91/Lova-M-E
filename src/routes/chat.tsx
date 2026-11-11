@@ -12,6 +12,11 @@ import {
   listMessages,
   signOut,
   subscribeMessages,
+  subscribeMessageReceipts,
+  listMessageReceipts,
+  markMessagesDelivered,
+  markMessagesRead,
+  type MessageReceipt,
   editLiveMessage,
   deleteLiveMessage,
 } from "@/lib/chat/api";
@@ -67,6 +72,7 @@ function Chat() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [editingMessage, setEditingMessage] = useState<{ uid: string; text: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [receiptByMessageId, setReceiptByMessageId] = useState<Record<string, MessageReceipt>>({});
   const loadingOlderRef = useRef(false);
   const initialScrollDone = useRef(false);
 
@@ -96,10 +102,37 @@ function Chat() {
       try {
         const rows = await listMessages(me);
         if (!active) return;
-        await upsertLiveChatMessages(
-          rows.filter((row) => row.source === "live"),
-          me,
-        );
+        const liveRows = rows.filter((row) => row.source === "live");
+
+        await upsertLiveChatMessages(liveRows, me);
+
+        const incomingIds = liveRows.filter((row) => row.sender_id !== me.id).map((row) => row.id);
+
+        if (incomingIds.length) {
+          const receiptTask =
+            document.visibilityState === "visible"
+              ? markMessagesRead(incomingIds, me.id)
+              : markMessagesDelivered(incomingIds, me.id);
+
+          void receiptTask.catch((receiptError) => {
+            console.warn("M AND E receipt update failed:", receiptError);
+          });
+        }
+
+        const outgoingIds = liveRows.filter((row) => row.sender_id === me.id).map((row) => row.id);
+
+        try {
+          const receipts = await listMessageReceipts(outgoingIds);
+
+          if (active) {
+            setReceiptByMessageId(
+              Object.fromEntries(receipts.map((receipt) => [receipt.message_id, receipt])),
+            );
+          }
+        } catch (receiptError) {
+          console.warn("M AND E receipt sync failed:", receiptError);
+        }
+
         if (active) setError("");
       } catch (err) {
         if (active) setError(chatError(err));
@@ -128,9 +161,22 @@ function Chat() {
 
         if (!active) return;
 
-        cleanup = subscribeMessages(
+        const cleanupMessages = subscribeMessages(
           (message) => {
-            if (active) void upsertLiveChatMessages([message], me);
+            if (!active) return;
+
+            void upsertLiveChatMessages([message], me);
+
+            if (message.sender_id !== me.id) {
+              const receiptTask =
+                document.visibilityState === "visible"
+                  ? markMessagesRead([message.id], me.id)
+                  : markMessagesDelivered([message.id], me.id);
+
+              void receiptTask.catch((receiptError) => {
+                console.warn("M AND E receipt update failed:", receiptError);
+              });
+            }
           },
           (status) => {
             if (!active) return;
@@ -144,6 +190,27 @@ function Chat() {
             if (active) void removeLiveMessageFromStore(id);
           },
         );
+
+        const cleanupReceipts = subscribeMessageReceipts((receipt, event) => {
+          if (!active) return;
+
+          setReceiptByMessageId((current) => {
+            const next = { ...current };
+
+            if (event === "DELETE") {
+              delete next[receipt.message_id];
+            } else {
+              next[receipt.message_id] = receipt;
+            }
+
+            return next;
+          });
+        });
+
+        cleanup = () => {
+          cleanupMessages();
+          cleanupReceipts();
+        };
 
         await refresh();
       } catch (err) {
@@ -359,6 +426,19 @@ function Chat() {
               const senderName = side === "O" ? sides[message.k]?.name : undefined;
               const bookmarked = bookmarks.includes(message.u);
 
+              const receiptRow =
+                message.s === "LIVE" && side === profile?.side
+                  ? receiptByMessageId[message.u.slice(5)]
+                  : undefined;
+
+              const receipt = receiptRow?.read_at
+                ? "read"
+                : receiptRow?.delivered_at
+                  ? "delivered"
+                  : message.s === "LIVE" && side === profile?.side
+                    ? "sent"
+                    : undefined;
+
               return (
                 <div
                   key={message.u}
@@ -385,6 +465,7 @@ function Chat() {
                     canEdit={message.s === "LIVE" && side === profile?.side}
                     onEdit={() => void editMessage(message.u, message.x)}
                     onDelete={() => void deleteMessage(message.u)}
+                    receipt={receipt}
                   />
                 </div>
               );

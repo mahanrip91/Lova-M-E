@@ -25,7 +25,9 @@ import { supabase } from "@/lib/supabase";
 
 // Client-side cache of the server gate result so navigation stays instant.
 let gateCache: { unlocked: boolean; viewer: Viewer | null } | null = null;
-export function resetGateCache() { gateCache = null; }
+export function resetGateCache() {
+  gateCache = null;
+}
 
 function NotFoundComponent() {
   return (
@@ -33,7 +35,10 @@ function NotFoundComponent() {
       <div className="glass max-w-md rounded-3xl p-8 text-center">
         <h1 className="font-display text-6xl text-love">۴۰۴</h1>
         <p className="mt-3 text-muted-foreground">این صفحه در کهکشان ما پیدا نشد.</p>
-        <Link to="/" className="mt-6 inline-block rounded-full bg-love px-5 py-2 text-primary-foreground">
+        <Link
+          to="/"
+          className="mt-6 inline-block rounded-full bg-love px-5 py-2 text-primary-foreground"
+        >
           بازگشت به خانه
         </Link>
       </div>
@@ -87,7 +92,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Lalezar&family=Vazirmatn:wght@300;400;600;800&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Lalezar&family=Vazirmatn:wght@300;400;600;800&display=swap",
+      },
     ],
   }),
   beforeLoad: async ({ location }) => {
@@ -99,7 +107,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     }
 
     const native = typeof window !== "undefined" && Capacitor.isNativePlatform();
-            const g = native ? getNativeGate() : ((typeof window !== "undefined" && gateCache) || (await getGate()));
+    const g = native
+      ? getNativeGate()
+      : (typeof window !== "undefined" && gateCache) || (await getGate());
     if (typeof window !== "undefined") gateCache = g.unlocked ? g : null;
     if (!g.unlocked || !g.viewer) throw redirect({ to: "/unlock" });
     return { viewer: g.viewer as Viewer | null };
@@ -148,15 +158,22 @@ function RootComponent() {
 
   const viewer = useViewer();
   const theme = useTheme();
-  useEffect(() => { setViewer(ctxViewer); }, [ctxViewer]);
-  useEffect(() => { applyTheme(viewer, theme); }, [viewer, theme]);
   useEffect(() => {
-    if (ctxViewer) initStore();
+    setViewer(ctxViewer);
   }, [ctxViewer]);
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    applyTheme(viewer, theme);
+  }, [viewer, theme]);
+  useEffect(() => {
+    if (viewer) initStore();
+  }, [viewer]);
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-      if (router.state.location.pathname !== "/chat" && router.state.location.pathname !== "/login") return;
+      if (router.state.location.pathname !== "/chat" && router.state.location.pathname !== "/login")
+        return;
       // Leave the synchronous Auth callback before revalidation requests.
       setTimeout(() => {
         if (event === "SIGNED_OUT") {
@@ -164,7 +181,9 @@ function RootComponent() {
             queryClient.clear();
             void router.navigate({ to: "/login", replace: true });
           });
-        } else { void router.invalidate(); }
+        } else {
+          void router.invalidate();
+        }
       }, 0);
     });
     return () => subscription.unsubscribe();
@@ -173,7 +192,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <div className="starfield" aria-hidden />
       <div className={`relative z-10 min-h-screen ${bypassArchiveGate(path) ? "" : "pb-24"}`}>
-        {(!nativeGateReady && path !== "/unlock") ? null : <Outlet />}
+        {!nativeGateReady && path !== "/unlock" ? null : <Outlet />}
       </div>
       {nativeGateReady && !bypassArchiveGate(path) && <BottomNav />}
     </QueryClientProvider>

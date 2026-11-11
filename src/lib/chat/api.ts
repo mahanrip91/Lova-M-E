@@ -1,8 +1,10 @@
 import { supabase } from "@/lib/supabase";
 import { get, set } from "idb-keyval";
 import type { ChatMessage, Profile } from "./types";
+import type { Msg } from "@/lib/mae/parse";
 
-const messageColumns = "id,sender_id,body,kind,media_path,reply_to,client_id,source,created_at,edited_at";
+const messageColumns =
+  "id,sender_id,body,kind,media_path,reply_to,client_id,source,created_at,edited_at";
 const CHAT_CACHE_KEY = "mae:unified-chat:v1";
 
 export async function signIn(email: string, password: string) {
@@ -32,8 +34,11 @@ export async function getMyProfile(): Promise<Profile | null> {
   const cacheKey = `mae:profile:${userId}`;
 
   try {
-    const { data, error } = await supabase.from("profiles")
-      .select("id,display_name,side").eq("id", userId).maybeSingle();
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id,display_name,side")
+      .eq("id", userId)
+      .maybeSingle();
 
     if (error) throw error;
     if (!data || (data.side !== "M" && data.side !== "E")) return null;
@@ -49,8 +54,11 @@ export async function getMyProfile(): Promise<Profile | null> {
 }
 
 async function fetchLiveMessages(limit = 200): Promise<ChatMessage[]> {
-  const { data, error } = await supabase.from("messages").select(messageColumns)
-    .order("created_at", { ascending: false }).order("id", { ascending: false })
+  const { data, error } = await supabase
+    .from("messages")
+    .select(messageColumns)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(limit);
   if (error) throw error;
   return (data as ChatMessage[]).reverse();
@@ -58,7 +66,9 @@ async function fetchLiveMessages(limit = 200): Promise<ChatMessage[]> {
 
 async function fetchArchiveMessages(limit = 50): Promise<ChatMessage[]> {
   const { data: profiles, error: profileError } = await supabase
-    .from("profiles").select("id,side").in("side", ["M", "E"]);
+    .from("profiles")
+    .select("id,side")
+    .in("side", ["M", "E"]);
 
   if (profileError) throw profileError;
 
@@ -70,7 +80,8 @@ async function fetchArchiveMessages(limit = 50): Promise<ChatMessage[]> {
     throw new Error("پروفایل هر دو طرف گفتگو پیدا نشد.");
   }
 
-  const { data, error } = await supabase.from("archive_messages")
+  const { data, error } = await supabase
+    .from("archive_messages")
     .select("uid,sender_side,occurred_at,body,kind,reply_uid,media_label,is_edited")
     .order("occurred_at", { ascending: false })
     .order("uid", { ascending: false })
@@ -83,9 +94,19 @@ async function fetchArchiveMessages(limit = 50): Promise<ChatMessage[]> {
     sender_id: ids[row.sender_side] ?? "",
     body: row.body,
     kind: ([
-      "text", "image", "gif", "video", "voice",
-      "music", "file", "sticker", "post", "nontext"
-    ].includes(row.kind) ? row.kind : "nontext") as ChatMessage["kind"],
+      "text",
+      "image",
+      "gif",
+      "video",
+      "voice",
+      "music",
+      "file",
+      "sticker",
+      "post",
+      "nontext",
+    ].includes(row.kind)
+      ? row.kind
+      : "nontext") as ChatMessage["kind"],
     media_path: row.media_label,
     reply_to: row.reply_uid ? `archive:${row.reply_uid}` : null,
     client_id: `archive:${row.uid}`,
@@ -106,10 +127,7 @@ export async function saveMessagesCache(messages: ChatMessage[]) {
 export async function listMessages(_profile: Profile): Promise<ChatMessage[]> {
   const cached = await get<ChatMessage[]>(CHAT_CACHE_KEY).catch(() => []);
   try {
-    const [archive, live] = await Promise.all([
-      fetchArchiveMessages(50),
-      fetchLiveMessages(200)
-    ]);
+    const [archive, live] = await Promise.all([fetchArchiveMessages(50), fetchLiveMessages(200)]);
     const combined = mergeMessages(archive, live);
     await saveMessagesCache(combined);
     return combined;
@@ -127,13 +145,17 @@ export async function sendTextMessage(body: string, senderId: string): Promise<C
   if (authError) throw authError;
   if (!auth.user || auth.user.id !== senderId) throw new Error("INVALID_SENDER");
 
-  const { data, error } = await supabase.from("messages").insert({
-    sender_id: auth.user.id,
-    body: text,
-    kind: "text",
-    source: "live",
-    client_id: crypto.randomUUID(),
-  }).select(messageColumns).single();
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({
+      sender_id: auth.user.id,
+      body: text,
+      kind: "text",
+      source: "live",
+      client_id: crypto.randomUUID(),
+    })
+    .select(messageColumns)
+    .single();
 
   if (error) throw error;
   return data as ChatMessage;
@@ -143,7 +165,7 @@ export function mergeMessages(current: ChatMessage[], incoming: ChatMessage[]): 
   const rows = new Map(current.map((message) => [message.id, message]));
   for (const message of incoming) rows.set(message.id, message);
   return [...rows.values()].sort(
-    (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
+    (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
   );
 }
 
@@ -153,19 +175,202 @@ export function subscribeMessages(
   onUpdate?: (message: ChatMessage) => void,
   onDelete?: (id: string) => void,
 ) {
-  const channel = supabase.channel(`mae-live-${crypto.randomUUID()}`)
-    .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" },
-      (payload) => onInsert(payload.new as ChatMessage))
-    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" },
-      (payload) => onUpdate?.(payload.new as ChatMessage))
-    .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" },
-      (payload) => {
-        const old = payload.old as { id?: string };
-        if (old.id) onDelete?.(old.id);
-      })
+  const channel = supabase
+    .channel(`mae-live-${crypto.randomUUID()}`)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) =>
+      onInsert(payload.new as ChatMessage),
+    )
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, (payload) =>
+      onUpdate?.(payload.new as ChatMessage),
+    )
+    .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (payload) => {
+      const old = payload.old as { id?: string };
+      if (old.id) onDelete?.(old.id);
+    })
     .subscribe((status) => onStatus?.(status));
 
-  return () => { void supabase.removeChannel(channel); };
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
+export interface MessageReceipt {
+  message_id: string;
+  user_id: string;
+  delivered_at: string | null;
+  read_at: string | null;
+}
+
+export async function markMessagesDelivered(messageIds: string[], userId: string): Promise<void> {
+  const ids = [...new Set(messageIds.filter(Boolean))];
+  if (!ids.length) return;
+
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!auth.user || auth.user.id !== userId) {
+    throw new Error("INVALID_RECEIPT_USER");
+  }
+
+  const now = new Date().toISOString();
+  const rows = ids.map((message_id) => ({
+    message_id,
+    user_id: auth.user.id,
+    delivered_at: now,
+  }));
+
+  const { error } = await supabase
+    .from("message_receipts")
+    .upsert(rows, { onConflict: "message_id,user_id" });
+
+  if (error) throw error;
+}
+
+export async function markMessagesRead(messageIds: string[], userId: string): Promise<void> {
+  const ids = [...new Set(messageIds.filter(Boolean))];
+  if (!ids.length) return;
+
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!auth.user || auth.user.id !== userId) {
+    throw new Error("INVALID_RECEIPT_USER");
+  }
+
+  const now = new Date().toISOString();
+  const rows = ids.map((message_id) => ({
+    message_id,
+    user_id: auth.user.id,
+    delivered_at: now,
+    read_at: now,
+  }));
+
+  const { error } = await supabase
+    .from("message_receipts")
+    .upsert(rows, { onConflict: "message_id,user_id" });
+
+  if (error) throw error;
+}
+
+export async function listMessageReceipts(messageIds: string[]): Promise<MessageReceipt[]> {
+  const ids = [...new Set(messageIds.filter(Boolean))];
+  if (!ids.length) return [];
+
+  const { data, error } = await supabase
+    .from("message_receipts")
+    .select("message_id,user_id,delivered_at,read_at")
+    .in("message_id", ids);
+
+  if (error) throw error;
+  return (data ?? []) as MessageReceipt[];
+}
+
+export function subscribeMessageReceipts(
+  onChange: (receipt: MessageReceipt, event: "INSERT" | "UPDATE" | "DELETE") => void,
+) {
+  const channel = supabase
+    .channel("mae-receipts-" + crypto.randomUUID())
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "message_receipts" },
+      (payload) => {
+        const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as MessageReceipt;
+
+        if (row?.message_id) {
+          onChange(row, payload.eventType as "INSERT" | "UPDATE" | "DELETE");
+        }
+      },
+    )
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
+export interface FullSearchResult {
+  results: Msg[];
+  total: number;
+}
+
+export async function searchAllMessages(
+  query: string,
+  sourceId: string | null,
+  side: string | null,
+  signal?: AbortSignal,
+  offset = 0,
+): Promise<FullSearchResult> {
+  if (query.trim().length < 2) {
+    return { results: [], total: 0 };
+  }
+
+  let request = supabase.rpc("search_all_messages", {
+    search_text: query.trim(),
+    source_filter: sourceId,
+    side_filter: side,
+    result_limit: 300,
+    result_offset: offset,
+  });
+
+  if (signal) request = request.abortSignal(signal);
+
+  const { data, error } = await request;
+  if (error) throw error;
+
+  const rows = (data ?? []) as Array<{
+    uid: string;
+    source_id: string;
+    occurred_at: string;
+    sender_side: string;
+    sender_key: string;
+    body: string | null;
+    kind: string;
+    original_order: number;
+    reply_uid: string | null;
+    media_label: string | null;
+    is_edited: boolean;
+    is_forwarded: boolean;
+    total_count: number | string;
+  }>;
+
+  const kindMap: Record<string, Msg["kd"]> = {
+    text: "text",
+    image: "image",
+    gif: "gif",
+    video: "video",
+    voice: "voice",
+    music: "music",
+    file: "file",
+    sticker: "sticker",
+    post: "post",
+    nontext: "nontext",
+  };
+
+  const results: Msg[] = rows.map((row) => {
+    const live = row.source_id === "LIVE";
+
+    const message: Msg = {
+      u: (live ? "live:" : "archive:") + row.uid,
+      s: row.source_id,
+      t: Date.parse(row.occurred_at),
+      k: live ? "LIVE:" + row.sender_side : row.source_id + ":" + row.sender_key,
+      x: row.body ?? "",
+      kd: kindMap[row.kind] ?? "nontext",
+      o: Number(row.original_order),
+    };
+
+    if (row.reply_uid) {
+      message.r = (live ? "live:" : "archive:") + row.reply_uid;
+    }
+    if (row.media_label) message.m = row.media_label;
+    if (row.is_edited) message.e = 1;
+    if (row.is_forwarded) message.f = 1;
+
+    return message;
+  });
+
+  return {
+    results,
+    total: Number(rows[0]?.total_count ?? 0),
+  };
 }
 
 export function chatError(error: unknown) {
@@ -176,11 +381,10 @@ export function chatError(error: unknown) {
   return "ارتباط برقرار نشد یا دسترسی ممکن نیست؛ دوباره امتحان کن.";
 }
 
-
 export async function sendMediaMessage(
   file: Blob,
   kind: "voice" | "video" | "image" | "gif",
-  senderId: string
+  senderId: string,
 ): Promise<ChatMessage> {
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError) throw authError;
@@ -194,19 +398,31 @@ export async function sendMediaMessage(
     gif: ["image/gif"],
   };
   if (!allowed[kind]?.includes(mime)) throw new Error("فرمت رسانه پشتیبانی نمی‌شود.");
-  const maxSize = kind === "voice" ? 12 * 1024 * 1024
-    : kind === "image" || kind === "gif" ? 12 * 1024 * 1024
-    : 25 * 1024 * 1024;
+  const maxSize =
+    kind === "voice"
+      ? 12 * 1024 * 1024
+      : kind === "image" || kind === "gif"
+        ? 12 * 1024 * 1024
+        : 25 * 1024 * 1024;
   if (file.size > maxSize) throw new Error("حجم فایل بیش از حد مجاز است.");
 
-  const ext = mime.includes("jpeg") ? "jpg"
-    : mime.includes("png") ? "png"
-    : mime.includes("webp") ? "webp"
-    : mime.includes("gif") ? "gif"
-    : mime.includes("heic") ? "heic"
-    : mime.includes("heif") ? "heif"
-    : mime.includes("mp4") ? "mp4"
-    : mime.includes("ogg") ? "ogg" : "webm";
+  const ext = mime.includes("jpeg")
+    ? "jpg"
+    : mime.includes("png")
+      ? "png"
+      : mime.includes("webp")
+        ? "webp"
+        : mime.includes("gif")
+          ? "gif"
+          : mime.includes("heic")
+            ? "heic"
+            : mime.includes("heif")
+              ? "heif"
+              : mime.includes("mp4")
+                ? "mp4"
+                : mime.includes("ogg")
+                  ? "ogg"
+                  : "webm";
   const path = `${auth.user.id}/${crypto.randomUUID()}.${ext}`;
 
   const { error: uploadError } = await supabase.storage
@@ -214,14 +430,18 @@ export async function sendMediaMessage(
     .upload(path, file, { contentType: mime, upsert: false });
   if (uploadError) throw uploadError;
 
-  const { data, error } = await supabase.from("messages").insert({
-    sender_id: auth.user.id,
-    body: "",
-    kind,
-    media_path: path,
-    source: "live",
-    client_id: crypto.randomUUID(),
-  }).select(messageColumns).single();
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({
+      sender_id: auth.user.id,
+      body: "",
+      kind,
+      media_path: path,
+      source: "live",
+      client_id: crypto.randomUUID(),
+    })
+    .select(messageColumns)
+    .single();
 
   if (error) {
     await supabase.storage.from("chat-media").remove([path]);
@@ -235,9 +455,7 @@ export async function getChatMediaBlob(path: string): Promise<Blob> {
   const cached = await get<Blob>(cacheKey).catch(() => undefined);
   if (cached instanceof Blob && cached.size > 0) return cached;
 
-  const { data, error } = await supabase.storage
-    .from("chat-media")
-    .download(path);
+  const { data, error } = await supabase.storage.from("chat-media").download(path);
   if (error) throw error;
   if (!data || data.size === 0) throw new Error("فایل رسانه خالی است.");
 
@@ -249,7 +467,6 @@ export async function getChatMediaBlob(path: string): Promise<Blob> {
   return data;
 }
 
-
 export async function editLiveMessage(id: string, body: string): Promise<ChatMessage> {
   const clean = body.trim();
   if (!clean) throw new Error("متن پیام نمی‌تواند خالی باشد.");
@@ -257,7 +474,8 @@ export async function editLiveMessage(id: string, body: string): Promise<ChatMes
   if (authError) throw authError;
   if (!auth.user) throw new Error("نشست کاربری معتبر نیست.");
 
-  const { data, error } = await supabase.from("messages")
+  const { data, error } = await supabase
+    .from("messages")
     .update({ body: clean, edited_at: new Date().toISOString() })
     .eq("id", id)
     .eq("sender_id", auth.user.id)
@@ -273,7 +491,8 @@ export async function deleteLiveMessage(id: string): Promise<void> {
   if (authError) throw authError;
   if (!auth.user) throw new Error("نشست کاربری معتبر نیست.");
 
-  const { data: row, error: readError } = await supabase.from("messages")
+  const { data: row, error: readError } = await supabase
+    .from("messages")
     .select("id,media_path")
     .eq("id", id)
     .eq("sender_id", auth.user.id)
@@ -281,7 +500,8 @@ export async function deleteLiveMessage(id: string): Promise<void> {
 
   if (readError) throw readError;
 
-  const { error } = await supabase.from("messages")
+  const { error } = await supabase
+    .from("messages")
     .delete()
     .eq("id", id)
     .eq("sender_id", auth.user.id);
@@ -290,7 +510,8 @@ export async function deleteLiveMessage(id: string): Promise<void> {
 
   if (row?.media_path) {
     const { error: storageError } = await supabase.storage
-      .from("chat-media").remove([row.media_path]);
+      .from("chat-media")
+      .remove([row.media_path]);
     if (storageError) console.warn("Media cleanup failed:", storageError);
   }
 }
