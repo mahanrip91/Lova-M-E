@@ -8,6 +8,7 @@ import {
   Pencil,
   Smile,
   Star,
+  Pin,
   Video,
   Film,
   Box,
@@ -46,7 +47,11 @@ const kindLabel: Record<string, { label: string; icon: typeof ImageIcon }> = {
   nontext: { label: "پیام غیرمتنی (رسانه در خروجی نیامده)", icon: Box },
 };
 
-export function MediaPlayer({ src, kind, onMediaLoaded }: {
+export function MediaPlayer({
+  src,
+  kind,
+  onMediaLoaded,
+}: {
   src: string;
   kind: "voice" | "video";
   onMediaLoaded?: (() => void) | undefined;
@@ -281,6 +286,8 @@ export interface BubbleProps {
   canEdit?: boolean | undefined;
   onEdit?: (() => void) | undefined;
   onDelete?: (() => void) | undefined;
+  pinned?: boolean | undefined;
+  onPin?: (() => void) | undefined;
   receipt?: "sent" | "delivered" | "read" | undefined;
   onMediaLoaded?: (() => void) | undefined;
 }
@@ -302,6 +309,8 @@ export const Bubble = memo(function Bubble({
   onDelete,
   receipt,
   onMediaLoaded,
+  pinned,
+  onPin,
 }: BubbleProps) {
   const viewer = useViewer() ?? "M";
   const [mediaUrl, setMediaUrl] = useState("");
@@ -505,13 +514,24 @@ export const Bubble = memo(function Bubble({
                     if (m.mediaPath) {
                       const blob = await getChatMediaBlob(m.mediaPath);
                       const mime = blob.type || "application/octet-stream";
-                      const extension = mime.includes("webm") ? "webm"
-                        : mime.includes("mp4") ? "mp4"
-                        : mime.includes("gif") ? "gif"
-                        : mime.includes("png") ? "png"
-                        : mime.includes("jpeg") ? "jpg"
-                        : mime.includes("audio") ? "m4a" : "bin";
-                      const file = new File([blob], `M-AND-E-${m.u.replace(/[^a-zA-Z0-9_-]/g, "_")}.${extension}`, { type: mime });
+                      const extension = mime.includes("webm")
+                        ? "webm"
+                        : mime.includes("mp4")
+                          ? "mp4"
+                          : mime.includes("gif")
+                            ? "gif"
+                            : mime.includes("png")
+                              ? "png"
+                              : mime.includes("jpeg")
+                                ? "jpg"
+                                : mime.includes("audio")
+                                  ? "m4a"
+                                  : "bin";
+                      const file = new File(
+                        [blob],
+                        `M-AND-E-${m.u.replace(/[^a-zA-Z0-9_-]/g, "_")}.${extension}`,
+                        { type: mime },
+                      );
                       if (navigator.share && navigator.canShare?.({ files: [file] })) {
                         await navigator.share({ files: [file], text });
                         return;
@@ -526,6 +546,12 @@ export const Bubble = memo(function Bubble({
               >
                 <Share2 className="me-2 size-4" /> اشتراک‌گذاری
               </DropdownMenuItem>
+              {onPin && (
+                <DropdownMenuItem onSelect={() => onPin()}>
+                  <Pin className="me-2 size-4" />
+                  {pinned ? "برداشتن سنجاق" : "سنجاق پیام"}
+                </DropdownMenuItem>
+              )}
               {onBookmark && (
                 <DropdownMenuItem onSelect={() => onBookmark()}>
                   <Star className="me-2 size-4" />{" "}
@@ -550,6 +576,7 @@ export const Bubble = memo(function Bubble({
         </div>
 
         <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
+          {pinned && <Pin className="size-3 text-primary" aria-label="پیام سنجاق‌شده" />}
           {m.f && <Forward className="size-3" aria-label="فوروارد" />}
           {m.e && <Pencil className="size-3" aria-label="ویرایش‌شده" />}
           {sourceLabel && (

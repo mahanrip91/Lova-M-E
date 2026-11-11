@@ -526,3 +526,147 @@ export async function deleteLiveMessage(id: string): Promise<void> {
     if (storageError) console.warn("Media cleanup failed:", storageError);
   }
 }
+
+export interface PinnedMessage {
+  id: number;
+  message_uid: string | null;
+  pinned_by: string | null;
+  pinned_at: string | null;
+}
+
+export async function getPinnedMessage(): Promise<PinnedMessage | null> {
+  const { data, error } = await supabase
+    .from("pinned_messages")
+    .select("id,message_uid,pinned_by,pinned_at")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return (data as PinnedMessage | null) ?? null;
+}
+
+export async function pinMessage(messageUid: string, userId: string): Promise<void> {
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!auth.user || auth.user.id !== userId) throw new Error("INVALID_PIN_USER");
+
+  const { error } = await supabase.from("pinned_messages").upsert(
+    {
+      id: 1,
+      message_uid: messageUid,
+      pinned_by: auth.user.id,
+      pinned_at: new Date().toISOString(),
+    },
+    { onConflict: "id" },
+  );
+
+  if (error) throw error;
+}
+
+export async function unpinMessage(): Promise<void> {
+  const { error } = await supabase.from("pinned_messages").delete().eq("id", 1);
+
+  if (error) throw error;
+}
+
+export function subscribePinnedMessage(onChange: (message: PinnedMessage | null) => void) {
+  const channel = supabase
+    .channel("mae-pinned-message")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "pinned_messages" },
+      (payload) => {
+        if (payload.eventType === "DELETE") {
+          onChange(null);
+        } else {
+          onChange(payload.new as PinnedMessage);
+        }
+      },
+    )
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
+export interface PeerPresence {
+  online: boolean;
+  lastSeenAt: string | null;
+}
+
+export function subscribePresence(profile: Profile, onChange: (presence: PeerPresence) => void) {
+  const peerSide = profile.side === "M" ? "E" : "M";
+  let peerId = "";
+  let online = false;
+  let lastSeenAt: string | null = null;
+  let active = true;
+
+  const publish = () => {
+    if (active) onChange({ online, lastSeenAt });
+  };
+
+  const channel = supabase
+    .channel("mae-presence", {
+      config: {
+        private: true,
+        presence: { key: profile.id },
+      },
+    })
+    .on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState() as Record<string, Array<{ side?: string }>>;
+      online = Object.values(state).some((entries) =>
+        entries.some((entry) => entry.side === peerSide),
+      );
+      publish();
+    })
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, (payload) => {
+      const row = payload.new as {
+        id?: string;
+        last_seen_at?: string | null;
+      };
+      if (row.id === peerId) {
+        lastSeenAt = row.last_seen_at ?? null;
+        publish();
+      }
+    })
+    .subscribe((status) => {
+      if (status !== "SUBSCRIBED" || !active) return;
+
+      void (async () => {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id,last_seen_at")
+          .eq("side", peerSide)
+          .maybeSingle();
+
+        if (error) throw error;
+        peerId = data?.id ?? "";
+        lastSeenAt = data?.last_seen_at ?? null;
+        publish();
+
+        await supabase
+          .from("profiles")
+          .update({ last_seen_at: new Date().toISOString() })
+          .eq("id", profile.id);
+
+        await channel.track({
+          user_id: profile.id,
+          side: profile.side,
+          online_at: new Date().toISOString(),
+        });
+      })().catch((error) => {
+        console.warn("M AND E presence setup failed:", error);
+      });
+    });
+
+  return () => {
+    active = false;
+    void channel.untrack();
+    void supabase
+      .from("profiles")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("id", profile.id);
+    void supabase.removeChannel(channel);
+  };
+}

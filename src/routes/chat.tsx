@@ -2,7 +2,16 @@ import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tansta
 import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowRight, LoaderCircle, LogOut, MessageCircle, Trash2, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowRight,
+  LoaderCircle,
+  LogOut,
+  MessageCircle,
+  Trash2,
+  X,
+  Pin,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Bubble, DayDivider } from "@/components/mae/Bubble";
 import {
@@ -20,6 +29,11 @@ import {
   editLiveMessage,
   deleteLiveMessage,
   getLiveMessageById,
+  getPinnedMessage,
+  pinMessage,
+  unpinMessage,
+  subscribePinnedMessage,
+  subscribePresence,
 } from "@/lib/chat/api";
 import type { Profile } from "@/lib/chat/types";
 import {
@@ -78,6 +92,9 @@ function Chat() {
   const [attempt, setAttempt] = useState(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [showJumpLatest, setShowJumpLatest] = useState(false);
+  const [pinnedUid, setPinnedUid] = useState<string | null>(null);
+  const [peerOnline, setPeerOnline] = useState(false);
+  const [peerLastSeen, setPeerLastSeen] = useState<string | null>(null);
   const nearBottomRef = useRef(true);
   const [editingMessage, setEditingMessage] = useState<{ uid: string; text: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -247,6 +264,48 @@ function Chat() {
       window.removeEventListener("focus", onFocus);
     };
   }, [attempt, router]);
+
+  useEffect(() => {
+    if (!profile) return;
+
+    let active = true;
+    void getPinnedMessage()
+      .then((row) => {
+        if (active) setPinnedUid(row?.message_uid ?? null);
+      })
+      .catch((err) => {
+        console.warn("M AND E pinned message load failed:", err);
+      });
+
+    const stopPinned = subscribePinnedMessage((row) => {
+      if (active) setPinnedUid(row?.message_uid ?? null);
+    });
+
+    const stopPresence = subscribePresence(profile, (presence) => {
+      if (!active) return;
+      setPeerOnline(presence.online);
+      setPeerLastSeen(presence.lastSeenAt);
+    });
+
+    return () => {
+      active = false;
+      stopPinned();
+      stopPresence();
+    };
+  }, [profile]);
+
+  async function togglePinnedMessage(uid: string) {
+    if (!profile) return;
+    try {
+      if (pinnedUid === uid) {
+        await unpinMessage();
+      } else {
+        await pinMessage(uid, profile.id);
+      }
+    } catch (err) {
+      setError(chatError(err));
+    }
+  }
 
   useEffect(() => {
     if (!targetUid || loading || !profile) return;
@@ -436,6 +495,15 @@ function Chat() {
                   ? "در حال اتصال…"
                   : "اتصال زنده قطع است"}
               {" · "}
+              {peerOnline
+                ? "طرف مقابل آنلاین"
+                : peerLastSeen
+                  ? `آخرین بازدید ${new Date(peerLastSeen).toLocaleString("fa-IR", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}`
+                  : "وضعیت نامشخص"}
+              {" · "}
               {messages.length.toLocaleString("fa-IR")} پیام
             </p>
           </div>
@@ -459,6 +527,32 @@ function Chat() {
           </Button>
         </div>
       </header>
+
+      {pinnedUid && (
+        <div className="mx-3 mt-2 flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/5 px-3 py-2">
+          <Pin className="size-4 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] text-muted-foreground">پیام سنجاق‌شده</p>
+            <p className="truncate text-sm">
+              {messages.find((message) => message.u === pinnedUid)?.x ||
+                "پیام رسانه‌ای یا خارج از بخش بارگذاری‌شده"}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const index = messages.findIndex((message) => message.u === pinnedUid);
+              if (index >= 0)
+                virtualizer.scrollToIndex(index, { align: "center", behavior: "smooth" });
+              else setError("این پیام در بخش فعلی بارگذاری نشده است.");
+            }}
+          >
+            نمایش
+          </Button>
+        </div>
+      )}
 
       <section
         ref={scrollRef}
@@ -538,6 +632,8 @@ function Chat() {
                     onEdit={() => void editMessage(message.u, message.x)}
                     onDelete={() => void deleteMessage(message.u)}
                     receipt={receipt}
+                    pinned={pinnedUid === message.u}
+                    onPin={() => void togglePinnedMessage(message.u)}
                     onMediaLoaded={() => {
                       if (!nearBottomRef.current) return;
                       const element = scrollRef.current;
