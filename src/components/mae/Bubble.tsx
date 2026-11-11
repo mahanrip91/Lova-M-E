@@ -46,7 +46,11 @@ const kindLabel: Record<string, { label: string; icon: typeof ImageIcon }> = {
   nontext: { label: "پیام غیرمتنی (رسانه در خروجی نیامده)", icon: Box },
 };
 
-export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video" }) {
+export function MediaPlayer({ src, kind, onMediaLoaded }: {
+  src: string;
+  kind: "voice" | "video";
+  onMediaLoaded?: (() => void) | undefined;
+}) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -118,7 +122,10 @@ export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video
           ref={audioRef}
           src={src}
           preload="metadata"
-          onLoadedMetadata={(e) => syncDuration(e.currentTarget)}
+          onLoadedMetadata={(e) => {
+            syncDuration(e.currentTarget);
+            onMediaLoaded?.();
+          }}
           onDurationChange={(e) => syncDuration(e.currentTarget)}
           onTimeUpdate={(e) => {
             setCurrentTime(e.currentTarget.currentTime);
@@ -192,7 +199,10 @@ export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video
         src={src}
         playsInline
         preload="metadata"
-        onLoadedMetadata={(e) => syncDuration(e.currentTarget)}
+        onLoadedMetadata={(e) => {
+          syncDuration(e.currentTarget);
+          onMediaLoaded?.();
+        }}
         onDurationChange={(e) => syncDuration(e.currentTarget)}
         onTimeUpdate={(e) => {
           setCurrentTime(e.currentTarget.currentTime);
@@ -272,6 +282,7 @@ export interface BubbleProps {
   onEdit?: (() => void) | undefined;
   onDelete?: (() => void) | undefined;
   receipt?: "sent" | "delivered" | "read" | undefined;
+  onMediaLoaded?: (() => void) | undefined;
 }
 
 export const Bubble = memo(function Bubble({
@@ -290,6 +301,7 @@ export const Bubble = memo(function Bubble({
   onEdit,
   onDelete,
   receipt,
+  onMediaLoaded,
 }: BubbleProps) {
   const viewer = useViewer() ?? "M";
   const [mediaUrl, setMediaUrl] = useState("");
@@ -410,7 +422,7 @@ export const Bubble = memo(function Bubble({
                   <span className="text-primary transition group-hover:-translate-x-0.5">←</span>
                 </button>
               ) : m.kd === "voice" || m.kd === "video" ? (
-                <MediaPlayer src={mediaUrl} kind={m.kd} />
+                <MediaPlayer src={mediaUrl} kind={m.kd} onMediaLoaded={onMediaLoaded} />
               ) : (
                 <button
                   type="button"
@@ -422,6 +434,7 @@ export const Bubble = memo(function Bubble({
                     className="max-h-80 max-w-full rounded-xl object-contain"
                     src={mediaUrl}
                     alt="رسانهٔ پیام"
+                    onLoad={() => onMediaLoaded?.()}
                   />
                 </button>
               )}
@@ -489,6 +502,21 @@ export const Bubble = memo(function Bubble({
                 onSelect={async () => {
                   const text = m.x || `${k?.label || "پیام رسانه‌ای"} · ${fmtTime(m.t)}`;
                   try {
+                    if (m.mediaPath) {
+                      const blob = await getChatMediaBlob(m.mediaPath);
+                      const mime = blob.type || "application/octet-stream";
+                      const extension = mime.includes("webm") ? "webm"
+                        : mime.includes("mp4") ? "mp4"
+                        : mime.includes("gif") ? "gif"
+                        : mime.includes("png") ? "png"
+                        : mime.includes("jpeg") ? "jpg"
+                        : mime.includes("audio") ? "m4a" : "bin";
+                      const file = new File([blob], `M-AND-E-${m.u.replace(/[^a-zA-Z0-9_-]/g, "_")}.${extension}`, { type: mime });
+                      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+                        await navigator.share({ files: [file], text });
+                        return;
+                      }
+                    }
                     if (navigator.share) await navigator.share({ text });
                     else await navigator.clipboard.writeText(text);
                   } catch {

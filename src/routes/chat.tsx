@@ -2,7 +2,7 @@ import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tansta
 import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, LoaderCircle, LogOut, MessageCircle, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowRight, LoaderCircle, LogOut, MessageCircle, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Bubble, DayDivider } from "@/components/mae/Bubble";
 import {
@@ -77,6 +77,8 @@ function Chat() {
   const [leaving, setLeaving] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [showJumpLatest, setShowJumpLatest] = useState(false);
+  const nearBottomRef = useRef(true);
   const [editingMessage, setEditingMessage] = useState<{ uid: string; text: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [receiptByMessageId, setReceiptByMessageId] = useState<Record<string, MessageReceipt>>({});
@@ -315,6 +317,26 @@ function Chat() {
     };
   }, [messages.length, loading, targetUid, virtualizer]);
 
+  function jumpToLatest() {
+    const element = scrollRef.current;
+    if (!element || !messages.length) return;
+    virtualizer.scrollToIndex(messages.length - 1, { align: "end", behavior: "smooth" });
+    window.requestAnimationFrame(() => {
+      element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+    });
+    nearBottomRef.current = true;
+    setShowJumpLatest(false);
+  }
+
+  function handleChatScroll() {
+    const element = scrollRef.current;
+    if (!element) return;
+    const distance = element.scrollHeight - element.clientHeight - element.scrollTop;
+    nearBottomRef.current = distance < 180;
+    setShowJumpLatest(distance > 500);
+    void loadOlder();
+  }
+
   async function loadOlder() {
     const element = scrollRef.current;
     if (
@@ -440,7 +462,7 @@ function Chat() {
 
       <section
         ref={scrollRef}
-        onScroll={() => void loadOlder()}
+        onScroll={handleChatScroll}
         className="min-h-0 flex-1 overflow-y-auto py-4"
         aria-label="همه پیام‌ها"
       >
@@ -516,6 +538,15 @@ function Chat() {
                     onEdit={() => void editMessage(message.u, message.x)}
                     onDelete={() => void deleteMessage(message.u)}
                     receipt={receipt}
+                    onMediaLoaded={() => {
+                      if (!nearBottomRef.current) return;
+                      const element = scrollRef.current;
+                      if (element) {
+                        window.requestAnimationFrame(() => {
+                          element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+                        });
+                      }
+                    }}
                   />
                 </div>
               );
@@ -523,6 +554,19 @@ function Chat() {
           </div>
         )}
       </section>
+
+      {showJumpLatest && (
+        <Button
+          type="button"
+          onClick={jumpToLatest}
+          className="fixed bottom-28 right-5 z-40 size-12 rounded-full shadow-xl"
+          size="icon"
+          title="رفتن به آخرین پیام‌ها"
+          aria-label="رفتن به آخرین پیام‌ها"
+        >
+          <ArrowDown className="size-5" />
+        </Button>
+      )}
 
       {error && (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2">
@@ -599,7 +643,13 @@ function Chat() {
         editingMessage={editingMessage}
         onEditSubmit={saveEditedMessage}
         onCancelEdit={() => setEditingMessage(null)}
-        onSent={(message) => void upsertLiveChatMessages([message], profile!)}
+        onSent={(message) => {
+          void upsertLiveChatMessages([message], profile!);
+          window.requestAnimationFrame(() => {
+            const element = scrollRef.current;
+            if (element) element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+          });
+        }}
         onError={setError}
         onVideoRecordingStarted={() => {
           window.requestAnimationFrame(() => {
