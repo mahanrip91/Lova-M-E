@@ -1,14 +1,22 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { fixWebmDuration } from "@fix-webm-duration/fix";
 import EmojiPicker from "emoji-picker-react";
 import {
-  Camera, Image as ImageIcon, LoaderCircle, Mic, Send, Smile, Square, Video, X, Film
+  Camera,
+  Image as ImageIcon,
+  LoaderCircle,
+  Mic,
+  Send,
+  Smile,
+  Square,
+  Video,
+  X,
+  Film,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { sendMediaMessage, sendTextMessage } from "@/lib/chat/api";
 import type { ChatMessage, Profile } from "@/lib/chat/types";
 import { MediaPlayer } from "@/components/mae/Bubble";
-
-
 
 function ImageFilePreview({ file }: { file: File }) {
   const [url, setUrl] = useState("");
@@ -19,10 +27,7 @@ function ImageFilePreview({ file }: { file: File }) {
     return () => URL.revokeObjectURL(objectUrl);
   }, [file]);
 
-  return (
-    <img src={url} alt={file.name}
-      className="size-full object-cover" />
-  );
+  return <img src={url} alt={file.name} className="size-full object-cover" />;
 }
 
 type Props = {
@@ -31,15 +36,29 @@ type Props = {
   onSent: (message: ChatMessage) => void;
   onError: (message: string) => void;
   onVideoRecordingStarted?: () => void;
+  editingMessage?: { uid: string; text: string } | null;
+  onEditSubmit?: (uid: string, text: string) => Promise<void>;
+  onCancelEdit?: () => void;
 };
 
-export function Composer({ profile, disabled, onSent, onError, onVideoRecordingStarted }: Props) {
+export function Composer({
+  profile,
+  disabled,
+  onSent,
+  onError,
+  onVideoRecordingStarted,
+  editingMessage,
+  onEditSubmit,
+  onCancelEdit,
+}: Props) {
   const [body, setBody] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState<"voice" | "video" | null>(null);
   const [capturedMedia, setCapturedMedia] = useState<{
-    blob: Blob; kind: "voice" | "video"; url: string
+    blob: Blob;
+    kind: "voice" | "video";
+    url: string;
   } | null>(null);
 
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -50,12 +69,30 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const recordingStartedAt = useRef(0);
   const videoPreview = useRef<HTMLVideoElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (!editingMessage) return;
+
+    setBody(editingMessage.text);
+    setEmojiOpen(false);
+
+    const frame = window.requestAnimationFrame(() => {
+      const input = textareaRef.current;
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [editingMessage]);
+
   useEffect(() => {
     if (!capturedMedia) return;
     return () => URL.revokeObjectURL(capturedMedia.url);
   }, [capturedMedia]);
-
 
   useEffect(() => {
     if (videoPreview.current && cameraStream) {
@@ -64,10 +101,15 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
     }
   }, [cameraStream]);
 
-  useEffect(() => () => {
-    recorder.current?.state !== "inactive" && recorder.current?.stop();
-    stream.current?.getTracks().forEach((track) => track.stop());
-  }, []);
+  useEffect(
+    () => () => {
+      if (recorder.current && recorder.current.state !== "inactive") {
+        recorder.current.stop();
+      }
+      stream.current?.getTracks().forEach((track) => track.stop());
+    },
+    [],
+  );
 
   function stopStream() {
     stream.current?.getTracks().forEach((track) => track.stop());
@@ -81,7 +123,10 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
       const mediaStream = await navigator.mediaDevices.getUserMedia(
         kind === "voice"
           ? { audio: true }
-          : { audio: true, video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } } }
+          : {
+              audio: true,
+              video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
+            },
       );
       stream.current = mediaStream;
       if (kind === "video") {
@@ -89,26 +134,48 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
         onVideoRecordingStarted?.();
       }
 
-      const candidates = kind === "voice"
-        ? ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"]
-        : ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"];
+      const candidates =
+        kind === "voice"
+          ? ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"]
+          : ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"];
       const mimeType = candidates.find((type) => MediaRecorder.isTypeSupported(type));
       const mediaRecorder = new MediaRecorder(mediaStream, mimeType ? { mimeType } : undefined);
       chunks.current = [];
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size) chunks.current.push(event.data);
       };
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks.current, {
-          type: mediaRecorder.mimeType || (kind === "voice" ? "audio/webm" : "video/webm")
+      mediaRecorder.onstop = async () => {
+        const rawBlob = new Blob(chunks.current, {
+          type: mediaRecorder.mimeType || (kind === "voice" ? "audio/webm" : "video/webm"),
         });
+
+        const elapsedMs = Math.max(1, Math.round(performance.now() - recordingStartedAt.current));
+
+        let blob = rawBlob;
+
+        if (rawBlob.type.toLowerCase().includes("webm")) {
+          try {
+            blob = await fixWebmDuration(rawBlob, elapsedMs, { logger: false });
+          } catch (error) {
+            console.warn("M AND E WebM duration fix failed:", error);
+          }
+        }
+
         stopStream();
         setRecording(null);
+
         if (!blob.size) return;
-        setCapturedMedia({ blob, kind, url: URL.createObjectURL(blob) });
+
+        setCapturedMedia({
+          blob,
+          kind,
+          url: URL.createObjectURL(blob),
+        });
       };
+
       recorder.current = mediaRecorder;
       mediaRecorder.start(250);
+      recordingStartedAt.current = performance.now();
       setRecording(kind);
     } catch (error) {
       stopStream();
@@ -119,7 +186,6 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
   function stopRecording() {
     if (recorder.current?.state === "recording") recorder.current.stop();
   }
-
 
   async function sendCapturedMedia() {
     if (!profile || !capturedMedia || mediaBusy) return;
@@ -141,22 +207,26 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
     const imageTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
     const videoTypes = ["video/webm", "video/mp4"];
 
-    const valid = incoming.filter((file) =>
-      imageTypes.includes(file.type) || videoTypes.includes(file.type)
+    const valid = incoming.filter(
+      (file) => imageTypes.includes(file.type) || videoTypes.includes(file.type),
     );
 
     if (valid.length !== incoming.length) {
-      onError("فرمت بعضی فایل‌ها پشتیبانی نمی‌شود؛ عکس JPG، PNG، WebP، GIF و ویدیوی MP4 یا WebM انتخاب کن.");
+      onError(
+        "فرمت بعضی فایل‌ها پشتیبانی نمی‌شود؛ عکس JPG، PNG، WebP، GIF و ویدیوی MP4 یا WebM انتخاب کن.",
+      );
     }
 
-    const oversized = valid.find((file) =>
-      file.size > (file.type.startsWith("video/") ? 25 : 12) * 1024 * 1024
+    const oversized = valid.find(
+      (file) => file.size > (file.type.startsWith("video/") ? 25 : 12) * 1024 * 1024,
     );
 
     if (oversized) {
-      onError(oversized.type.startsWith("video/")
-        ? "حجم هر ویدیو باید حداکثر ۲۵ مگابایت باشد."
-        : "حجم هر عکس باید حداکثر ۱۲ مگابایت باشد.");
+      onError(
+        oversized.type.startsWith("video/")
+          ? "حجم هر ویدیو باید حداکثر ۲۵ مگابایت باشد."
+          : "حجم هر عکس باید حداکثر ۱۲ مگابایت باشد.",
+      );
       return;
     }
 
@@ -172,8 +242,8 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
       for (let index = 0; index < selectedFiles.length; index++) {
         const file = selectedFiles[index]!;
         setFileProgress(`ارسال ${index + 1} از ${selectedFiles.length}`);
-        const kind = file.type === "image/gif" ? "gif"
-          : file.type.startsWith("image/") ? "image" : "video";
+        const kind =
+          file.type === "image/gif" ? "gif" : file.type.startsWith("image/") ? "image" : "video";
         const message = await sendMediaMessage(file, kind, profile.id);
         onSent(message);
         setSelectedFiles(selectedFiles.slice(index + 1));
@@ -189,7 +259,27 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!profile || disabled || sending || !body.trim()) return;
+    if (!profile || disabled || sending || mediaBusy) return;
+
+    if (editingMessage) {
+      if (!body.trim() || !onEditSubmit) return;
+
+      setSending(true);
+      try {
+        await onEditSubmit(editingMessage.uid, body);
+        setBody("");
+        onCancelEdit?.();
+        setEmojiOpen(false);
+      } catch (error) {
+        onError(error instanceof Error ? error.message : "ویرایش پیام انجام نشد.");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    if (!body.trim()) return;
+
     setSending(true);
     try {
       const message = await sendTextMessage(body, profile.id);
@@ -207,7 +297,6 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
 
   return (
     <div className="glass relative shrink-0 border-t border-white/10 px-3 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
-
       {capturedMedia && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
           <section className="w-full max-w-lg overflow-hidden rounded-[2rem] border border-white/15 bg-background shadow-2xl">
@@ -216,8 +305,13 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
                 <p className="font-bold">پیش‌نمایش پیام ضبط‌شده</p>
                 <p className="text-xs text-muted-foreground">قبل از ارسال، گوش کن یا تماشایش کن</p>
               </div>
-              <button type="button" onClick={() => setCapturedMedia(null)} disabled={mediaBusy}
-                className="grid size-9 place-items-center rounded-full bg-muted" aria-label="بستن پیش‌نمایش">
+              <button
+                type="button"
+                onClick={() => setCapturedMedia(null)}
+                disabled={mediaBusy}
+                className="grid size-9 place-items-center rounded-full bg-muted"
+                aria-label="بستن پیش‌نمایش"
+              >
                 <X className="size-4" />
               </button>
             </header>
@@ -233,13 +327,26 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
               )}
             </div>
             <footer className="flex gap-3 p-4">
-              <Button type="button" variant="outline" className="flex-1 rounded-xl"
-                disabled={mediaBusy} onClick={() => setCapturedMedia(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 rounded-xl"
+                disabled={mediaBusy}
+                onClick={() => setCapturedMedia(null)}
+              >
                 ضبط دوباره
               </Button>
-              <Button type="button" className="flex-1 rounded-xl" disabled={mediaBusy}
-                onClick={() => void sendCapturedMedia()}>
-                {mediaBusy ? <LoaderCircle className="animate-spin" /> : <Send className="size-4" />}
+              <Button
+                type="button"
+                className="flex-1 rounded-xl"
+                disabled={mediaBusy}
+                onClick={() => void sendCapturedMedia()}
+              >
+                {mediaBusy ? (
+                  <LoaderCircle className="animate-spin" />
+                ) : (
+                  <Send className="size-4" />
+                )}
                 تأیید و ارسال
               </Button>
             </footer>
@@ -247,19 +354,45 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
         </div>
       )}
 
+      {editingMessage && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/10 px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-primary">در حال ویرایش پیام</p>
+            <p className="truncate text-xs text-muted-foreground">{editingMessage.text}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setBody("");
+              onCancelEdit?.();
+            }}
+            className="grid size-9 shrink-0 place-items-center rounded-full bg-background/70 text-muted-foreground"
+            aria-label="لغو ویرایش"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
+
       {selectedFiles.length > 0 && (
         <div className="mb-3 rounded-2xl border border-primary/20 bg-background/80 p-3">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-semibold">رسانه‌های انتخاب‌شده ({selectedFiles.length})</p>
-            <button type="button" onClick={() => setSelectedFiles([])}
-              disabled={mediaBusy} className="text-xs text-muted-foreground">
+            <button
+              type="button"
+              onClick={() => setSelectedFiles([])}
+              disabled={mediaBusy}
+              className="text-xs text-muted-foreground"
+            >
               پاک کردن همه
             </button>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-2">
             {selectedFiles.map((file, index) => (
-              <div key={`${file.name}-${file.lastModified}-${index}`}
-                className="relative size-24 shrink-0 overflow-hidden rounded-xl border border-border bg-muted">
+              <div
+                key={`${file.name}-${file.lastModified}-${index}`}
+                className="relative size-24 shrink-0 overflow-hidden rounded-xl border border-border bg-muted"
+              >
                 {file.type.startsWith("image/") ? (
                   <ImageFilePreview file={file} />
                 ) : (
@@ -268,10 +401,15 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
                     <span className="max-w-full truncate px-1 text-[9px]">{file.name}</span>
                   </div>
                 )}
-                <button type="button" disabled={mediaBusy}
-                  onClick={() => setSelectedFiles((current) => current.filter((_, i) => i !== index))}
+                <button
+                  type="button"
+                  disabled={mediaBusy}
+                  onClick={() =>
+                    setSelectedFiles((current) => current.filter((_, i) => i !== index))
+                  }
                   aria-label="حذف فایل"
-                  className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white">
+                  className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white"
+                >
                   <X className="size-3.5" />
                 </button>
               </div>
@@ -279,7 +417,12 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
           </div>
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground">{fileProgress || "آمادهٔ ارسال"}</span>
-            <Button type="button" size="sm" disabled={mediaBusy} onClick={() => void sendSelectedFiles()}>
+            <Button
+              type="button"
+              size="sm"
+              disabled={mediaBusy}
+              onClick={() => void sendSelectedFiles()}
+            >
               {mediaBusy ? <LoaderCircle className="animate-spin" /> : <Send className="size-4" />}
               ارسال رسانه
             </Button>
@@ -292,17 +435,27 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
           <div className="mb-3 flex w-full max-w-lg items-center justify-between text-white">
             <div>
               <p className="font-bold">در حال ضبط ویدیو مسیج</p>
-              <p className="text-xs text-white/60">بعد از توقف، پیش‌نمایش و تأیید ارسال نمایش داده می‌شود</p>
+              <p className="text-xs text-white/60">
+                بعد از توقف، پیش‌نمایش و تأیید ارسال نمایش داده می‌شود
+              </p>
             </div>
             <span className="flex items-center gap-2 text-xs text-red-400">
               <span className="size-2 animate-pulse rounded-full bg-red-500" /> ضبط
             </span>
           </div>
-          <video ref={videoPreview} muted playsInline
-            className="h-full max-h-full min-h-0 w-auto max-w-full rounded-[2rem] bg-black object-contain ring-1 ring-white/20 shadow-[0_0_60px_rgba(130,80,255,0.18)]" />
-          <Button type="button" size="lg" variant="destructive"
+          <video
+            ref={videoPreview}
+            muted
+            playsInline
+            className="h-full max-h-full min-h-0 w-auto max-w-full rounded-[2rem] bg-black object-contain ring-1 ring-white/20 shadow-[0_0_60px_rgba(130,80,255,0.18)]"
+          />
+          <Button
+            type="button"
+            size="lg"
+            variant="destructive"
             className="mb-1 mt-3 h-14 w-full max-w-lg shrink-0 rounded-2xl text-base"
-            onClick={stopRecording}>
+            onClick={stopRecording}
+          >
             <Square className="size-5" /> توقف ضبط
           </Button>
         </div>
@@ -314,7 +467,13 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
             <span className="size-2 animate-pulse rounded-full bg-red-500" />
             در حال ضبط پیام صوتی…
           </div>
-          <Button type="button" size="icon" variant="destructive" onClick={stopRecording} aria-label="پایان ضبط">
+          <Button
+            type="button"
+            size="icon"
+            variant="destructive"
+            onClick={stopRecording}
+            aria-label="پایان ضبط"
+          >
             <Square className="size-4" />
           </Button>
         </div>
@@ -350,19 +509,32 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
         onChange={(event) => addFiles(event.target.files)}
       />
       <form onSubmit={submit} className="flex items-end gap-2">
-        <Button type="button" variant="ghost" size="icon"
-          className="shrink-0 rounded-xl" aria-label="شکلک‌ها"
-          onClick={() => setEmojiOpen((value) => !value)} disabled={blocked}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="shrink-0 rounded-xl"
+          aria-label="شکلک‌ها"
+          onClick={() => setEmojiOpen((value) => !value)}
+          disabled={blocked}
+        >
           <Smile className="size-5" />
         </Button>
-        <Button type="button" variant="ghost" size="icon"
-          className="shrink-0 rounded-xl" aria-label="انتخاب عکس و ویدیو"
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="shrink-0 rounded-xl"
+          aria-label="انتخاب عکس و ویدیو"
           title="عکس و ویدیو"
-          onClick={() => fileInput.current?.click()} disabled={blocked || !!recording}>
+          onClick={() => fileInput.current?.click()}
+          disabled={blocked || !!recording}
+        >
           <ImageIcon className="size-5" />
         </Button>
 
         <textarea
+          ref={textareaRef}
           aria-label="متن پیام"
           placeholder="پیامت رو بنویس…"
           rows={1}
@@ -378,22 +550,45 @@ export function Composer({ profile, disabled, onSent, onError, onVideoRecordingS
           className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-white/10 bg-background/65 px-4 py-3 text-sm outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
         />
 
-        {body.trim() ? (
-          <Button type="submit" size="icon" disabled={blocked}
-            className="size-11 shrink-0 rounded-2xl shadow-lg shadow-primary/20" aria-label="ارسال پیام">
-            {sending ? <LoaderCircle className="animate-spin" /> : <Send className="-scale-x-100" />}
+        {body.trim() || editingMessage ? (
+          <Button
+            type="submit"
+            size="icon"
+            disabled={blocked || (!!editingMessage && !body.trim())}
+            className="size-11 shrink-0 rounded-2xl shadow-lg shadow-primary/20"
+            aria-label={editingMessage ? "ذخیره ویرایش" : "ارسال پیام"}
+          >
+            {sending ? (
+              <LoaderCircle className="animate-spin" />
+            ) : editingMessage ? (
+              <Send className="size-5" />
+            ) : (
+              <Send className="-scale-x-100" />
+            )}
           </Button>
         ) : (
           <>
-            <Button type="button" size="icon" variant="ghost"
-              className="size-11 shrink-0 rounded-2xl" disabled={blocked || !!recording}
-              onClick={() => void startRecording("voice")} aria-label="ضبط پیام صوتی" title="ویس">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-11 shrink-0 rounded-2xl"
+              disabled={blocked || !!recording}
+              onClick={() => void startRecording("voice")}
+              aria-label="ضبط پیام صوتی"
+              title="ویس"
+            >
               {mediaBusy ? <LoaderCircle className="animate-spin" /> : <Mic />}
             </Button>
-            <Button type="button" size="icon"
+            <Button
+              type="button"
+              size="icon"
               className="size-11 shrink-0 rounded-2xl bg-gradient-to-br from-primary to-fuchsia-500 text-white shadow-lg shadow-primary/20"
               disabled={blocked || !!recording}
-              onClick={() => void startRecording("video")} aria-label="ضبط ویدیو مسیج" title="ویدیو مسیج">
+              onClick={() => void startRecording("video")}
+              aria-label="ضبط ویدیو مسیج"
+              title="ویدیو مسیج"
+            >
               <Video />
             </Button>
           </>

@@ -27,6 +27,7 @@
     "@capacitor/keyboard": "^8.0.6",
     "@capacitor/network": "^8.0.1",
     "@capacitor/status-bar": "^8.0.4",
+    "@fix-webm-duration/fix": "1.0.1",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",

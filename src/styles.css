@@ -160,3 +160,38 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
 }
+
+
+/* MAE CUSTOM MEDIA RANGE */
+.mae-media-range {
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  outline: none;
+}
+
+.mae-media-range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--color-background);
+  border-radius: 50%;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+.mae-media-range::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--color-background);
+  border-radius: 50%;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+.mae-media-range:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

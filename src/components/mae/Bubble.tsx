@@ -1,12 +1,35 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Forward, Image as ImageIcon, Mic, Music, Paperclip, Pencil, Smile, Star, Video, Film, Box, MoreVertical, Copy, Trash2, Share2, Edit3, Play, Pause, Volume2 } from "lucide-react";
+import {
+  Forward,
+  Image as ImageIcon,
+  Mic,
+  Music,
+  Paperclip,
+  Pencil,
+  Smile,
+  Star,
+  Video,
+  Film,
+  Box,
+  MoreVertical,
+  Copy,
+  Trash2,
+  Share2,
+  Edit3,
+  Play,
+  Pause,
+  Volume2,
+} from "lucide-react";
 import type { Msg } from "@/lib/mae/parse";
 import { fmtTime } from "@/lib/mae/time";
 import { cn } from "@/lib/utils";
 import { useViewer } from "@/lib/mae/viewer";
 import { getChatMediaBlob } from "@/lib/chat/api";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
 const kindLabel: Record<string, { label: string; icon: typeof ImageIcon }> = {
@@ -21,13 +44,37 @@ const kindLabel: Record<string, { label: string; icon: typeof ImageIcon }> = {
   nontext: { label: "پیام غیرمتنی (رسانه در خروجی نیامده)", icon: Box },
 };
 
-
 export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video" }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  const syncDuration = (element: HTMLMediaElement) => {
+    const value = element.duration;
+
+    if (Number.isFinite(value) && value > 0) {
+      setDuration(value);
+      return;
+    }
+
+    if (element.seekable.length > 0) {
+      const end = element.seekable.end(element.seekable.length - 1);
+      if (Number.isFinite(end) && end > 0) setDuration(end);
+    }
+  };
+
+  const handleEnded = (element: HTMLMediaElement) => {
+    const actualEnd = element.currentTime;
+
+    if (Number.isFinite(actualEnd) && actualEnd > 0) {
+      setCurrentTime(actualEnd);
+      setDuration(actualEnd);
+    }
+
+    setPlaying(false);
+  };
 
   useEffect(() => {
     setPlaying(false);
@@ -38,7 +85,9 @@ export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video
   const timeLabel = (value: number) => {
     if (!Number.isFinite(value) || value < 0) return "۰:۰۰";
     const minutes = Math.floor(value / 60);
-    const seconds = Math.floor(value % 60).toString().padStart(2, "0");
+    const seconds = Math.floor(value % 60)
+      .toString()
+      .padStart(2, "0");
     return `${minutes}:${seconds}`;
   };
 
@@ -67,11 +116,15 @@ export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video
           ref={audioRef}
           src={src}
           preload="metadata"
-          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
-          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          onLoadedMetadata={(e) => syncDuration(e.currentTarget)}
+          onDurationChange={(e) => syncDuration(e.currentTarget)}
+          onTimeUpdate={(e) => {
+            setCurrentTime(e.currentTarget.currentTime);
+            syncDuration(e.currentTarget);
+          }}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
-          onEnded={() => setPlaying(false)}
+          onEnded={(e) => handleEnded(e.currentTarget)}
           className="hidden"
         />
 
@@ -82,9 +135,11 @@ export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video
             className="grid size-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-fuchsia-500 text-white shadow-lg shadow-primary/25"
             aria-label={playing ? "توقف موقت پیام صوتی" : "پخش پیام صوتی"}
           >
-            {playing
-              ? <Pause className="size-5 fill-current" />
-              : <Play className="ms-0.5 size-5 fill-current" />}
+            {playing ? (
+              <Pause className="size-5 fill-current" />
+            ) : (
+              <Play className="ms-0.5 size-5 fill-current" />
+            )}
           </button>
 
           <div className="min-w-0 flex-1">
@@ -99,7 +154,10 @@ export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video
             </div>
 
             <div className="mb-2 flex h-7 items-center gap-[3px]" aria-hidden="true">
-              {[9,16,12,22,14,26,17,11,24,15,20,10,25,14,19,8,22,13,17,10,24,15,19,11].map((height, index) => (
+              {[
+                9, 16, 12, 22, 14, 26, 17, 11, 24, 15, 20, 10, 25, 14, 19, 8, 22, 13, 17, 10, 24,
+                15, 19, 11,
+              ].map((height, index) => (
                 <span
                   key={index}
                   className={`flex-1 rounded-full ${index / 24 <= (duration ? currentTime / duration : 0) ? "bg-primary" : "bg-primary/25"}`}
@@ -117,7 +175,7 @@ export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video
               value={Math.min(currentTime, duration || 0)}
               disabled={!duration}
               onChange={(e) => seek(Number(e.currentTarget.value))}
-              className="h-1.5 w-full cursor-pointer accent-primary disabled:opacity-40"
+              className="mae-media-range h-1.5 w-full cursor-pointer disabled:opacity-40"
             />
           </div>
         </div>
@@ -132,11 +190,15 @@ export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video
         src={src}
         playsInline
         preload="metadata"
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => syncDuration(e.currentTarget)}
+        onDurationChange={(e) => syncDuration(e.currentTarget)}
+        onTimeUpdate={(e) => {
+          setCurrentTime(e.currentTarget.currentTime);
+          syncDuration(e.currentTarget);
+        }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
+        onEnded={(e) => handleEnded(e.currentTarget)}
         onClick={togglePlayback}
         className="aspect-video max-h-[360px] w-full bg-black object-contain"
       />
@@ -184,7 +246,7 @@ export function MediaPlayer({ src, kind }: { src: string; kind: "voice" | "video
             value={Math.min(currentTime, duration || 0)}
             disabled={!duration}
             onChange={(e) => seek(Number(e.currentTarget.value))}
-            className="h-1.5 min-w-0 flex-1 cursor-pointer accent-fuchsia-400 disabled:opacity-40"
+            className="mae-media-range h-1.5 min-w-0 flex-1 cursor-pointer disabled:opacity-40"
           />
         </div>
       </div>
@@ -209,14 +271,28 @@ export interface BubbleProps {
   onDelete?: (() => void) | undefined;
 }
 
-export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, reply, replyMissing, bookmarked, onBookmark, onReplyClick, highlight, animate, canEdit, onEdit, onDelete }: BubbleProps) {
+export const Bubble = memo(function Bubble({
+  m,
+  side,
+  senderName,
+  sourceLabel,
+  reply,
+  replyMissing,
+  bookmarked,
+  onBookmark,
+  onReplyClick,
+  highlight,
+  animate,
+  canEdit,
+  onEdit,
+  onDelete,
+}: BubbleProps) {
   const viewer = useViewer() ?? "M";
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState("");
   const [imageExpanded, setImageExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-
 
   useEffect(() => {
     setMediaUrl("");
@@ -248,15 +324,30 @@ export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, r
   const mine = side === viewer;
   const k = m.kd !== "text" ? kindLabel[m.kd] : null;
   return (
-    <div className={cn("flex w-full px-3 py-1", mine ? "justify-start" : "justify-end", animate && "anim-rise")}>
+    <div
+      className={cn(
+        "flex w-full px-3 py-1",
+        mine ? "justify-start" : "justify-end",
+        animate && "anim-rise",
+      )}
+    >
       <div
         className={cn(
           "group relative max-w-[82%] rounded-2xl border px-3.5 py-2 text-[15px] leading-7 transition-shadow",
-          isO || !side ? "rounded-tl-md border-border bg-muted/60" : cn(mine ? "rounded-tr-md" : "rounded-tl-md", isM ? "border-mahan/40 bg-mahan/15" : "border-elisa/40 bg-elisa/15"),
+          isO || !side
+            ? "rounded-tl-md border-border bg-muted/60"
+            : cn(
+                mine ? "rounded-tr-md" : "rounded-tl-md",
+                isM ? "border-mahan/40 bg-mahan/15" : "border-elisa/40 bg-elisa/15",
+              ),
           highlight && (isM ? "glow-mahan" : "glow-elisa"),
         )}
       >
-        {(isO || !side) && senderName && <div className="mb-0.5 truncate text-xs font-bold text-gold" dir="auto">{senderName}</div>}
+        {(isO || !side) && senderName && (
+          <div className="mb-0.5 truncate text-xs font-bold text-gold" dir="auto">
+            {senderName}
+          </div>
+        )}
         {(reply || replyMissing) && (
           <button
             type="button"
@@ -269,49 +360,69 @@ export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, r
         {k && (
           <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
             <k.icon className="size-3.5" aria-hidden />
-            <span>{k.label}{m.m ? ` · ${m.m}` : ""}</span>
+            <span>
+              {k.label}
+              {m.m ? ` · ${m.m}` : ""}
+            </span>
           </div>
         )}
-        {m.mediaPath && (m.kd === "voice" || m.kd === "video" || m.kd === "image" || m.kd === "gif") && (
-          <div className="my-2 min-w-48 max-w-full">
-            {!mediaUrl ? (
-              <button
-                type="button"
-                onClick={() => void revealMedia()}
-                disabled={mediaLoading}
-                className="group flex w-full items-center gap-3 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background/90 to-fuchsia-500/10 p-3 text-start shadow-sm transition hover:border-primary/45 hover:shadow-lg hover:shadow-primary/5 disabled:opacity-60"
-              >
-                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-fuchsia-500 text-white shadow-lg shadow-primary/20">
-                  {mediaLoading
-                    ? <span className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    : m.kd === "voice" ? <Mic className="size-5" />
-                    : m.kd === "video" ? <Video className="size-5" />
-                    : <ImageIcon className="size-5" />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-bold">
-                    {mediaLoading ? "در حال دریافت رسانه…" : mediaError ? "دریافت ناموفق بود" : m.kd === "voice" ? "پیام صوتی" : m.kd === "video" ? "ویدیو مسیج" : "تصویر پیام"}
+        {m.mediaPath &&
+          (m.kd === "voice" || m.kd === "video" || m.kd === "image" || m.kd === "gif") && (
+            <div className="my-2 min-w-48 max-w-full">
+              {!mediaUrl ? (
+                <button
+                  type="button"
+                  onClick={() => void revealMedia()}
+                  disabled={mediaLoading}
+                  className="group flex w-full items-center gap-3 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background/90 to-fuchsia-500/10 p-3 text-start shadow-sm transition hover:border-primary/45 hover:shadow-lg hover:shadow-primary/5 disabled:opacity-60"
+                >
+                  <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-fuchsia-500 text-white shadow-lg shadow-primary/20">
+                    {mediaLoading ? (
+                      <span className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    ) : m.kd === "voice" ? (
+                      <Mic className="size-5" />
+                    ) : m.kd === "video" ? (
+                      <Video className="size-5" />
+                    ) : (
+                      <ImageIcon className="size-5" />
+                    )}
                   </span>
-                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                    {mediaError || (mediaLoading ? "کمی صبر کن…" : "برای دریافت و پخش لمس کن")}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold">
+                      {mediaLoading
+                        ? "در حال دریافت رسانه…"
+                        : mediaError
+                          ? "دریافت ناموفق بود"
+                          : m.kd === "voice"
+                            ? "پیام صوتی"
+                            : m.kd === "video"
+                              ? "ویدیو مسیج"
+                              : "تصویر پیام"}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                      {mediaError || (mediaLoading ? "کمی صبر کن…" : "برای دریافت و پخش لمس کن")}
+                    </span>
                   </span>
-                </span>
-                <span className="text-primary transition group-hover:-translate-x-0.5">←</span>
-              </button>
-            ) : m.kd === "voice" || m.kd === "video" ? (
-              <MediaPlayer src={mediaUrl} kind={m.kd} />
-            ) : (
-              <button
-                type="button"
-                onClick={() => setImageExpanded(true)}
-                className="block max-w-full overflow-hidden rounded-xl"
-                aria-label="نمایش تمام‌صفحه تصویر"
-              >
-                <img className="max-h-80 max-w-full rounded-xl object-contain" src={mediaUrl} alt="رسانهٔ پیام" />
-              </button>
-            )}
-          </div>
-        )}
+                  <span className="text-primary transition group-hover:-translate-x-0.5">←</span>
+                </button>
+              ) : m.kd === "voice" || m.kd === "video" ? (
+                <MediaPlayer src={mediaUrl} kind={m.kd} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setImageExpanded(true)}
+                  className="block max-w-full overflow-hidden rounded-xl"
+                  aria-label="نمایش تمام‌صفحه تصویر"
+                >
+                  <img
+                    className="max-h-80 max-w-full rounded-xl object-contain"
+                    src={mediaUrl}
+                    alt="رسانهٔ پیام"
+                  />
+                </button>
+              )}
+            </div>
+          )}
         {imageExpanded && mediaUrl && (m.kd === "image" || m.kd === "gif") && (
           <div
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-3"
@@ -342,42 +453,51 @@ export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, r
         <div className="absolute -top-3 end-1 z-20">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button type="button"
+              <button
+                type="button"
                 className="grid size-8 place-items-center rounded-full border border-white/10 bg-background/95 text-muted-foreground shadow-lg backdrop-blur"
-                aria-label="عملیات پیام">
+                aria-label="عملیات پیام"
+              >
                 <MoreVertical className="size-4" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top" className="z-[200] min-w-48">
-              <DropdownMenuItem onSelect={async () => {
-                try {
-                  await navigator.clipboard.writeText(m.x || "");
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                } catch {
-                  const area = document.createElement("textarea");
-                  area.value = m.x || "";
-                  document.body.appendChild(area);
-                  area.select();
-                  document.execCommand("copy");
-                  area.remove();
-                  setCopied(true);
-                }
-              }}>
+              <DropdownMenuItem
+                onSelect={async () => {
+                  try {
+                    await navigator.clipboard.writeText(m.x || "");
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  } catch {
+                    const area = document.createElement("textarea");
+                    area.value = m.x || "";
+                    document.body.appendChild(area);
+                    area.select();
+                    document.execCommand("copy");
+                    area.remove();
+                    setCopied(true);
+                  }
+                }}
+              >
                 <Copy className="me-2 size-4" /> {copied ? "کپی شد" : "کپی متن"}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={async () => {
-                const text = m.x || `${k?.label || "پیام رسانه‌ای"} · ${fmtTime(m.t)}`;
-                try {
-                  if (navigator.share) await navigator.share({ text });
-                  else await navigator.clipboard.writeText(text);
-                } catch {}
-              }}>
+              <DropdownMenuItem
+                onSelect={async () => {
+                  const text = m.x || `${k?.label || "پیام رسانه‌ای"} · ${fmtTime(m.t)}`;
+                  try {
+                    if (navigator.share) await navigator.share({ text });
+                    else await navigator.clipboard.writeText(text);
+                  } catch {
+                    /* Sharing or clipboard was cancelled. */
+                  }
+                }}
+              >
                 <Share2 className="me-2 size-4" /> اشتراک‌گذاری
               </DropdownMenuItem>
               {onBookmark && (
                 <DropdownMenuItem onSelect={() => onBookmark()}>
-                  <Star className="me-2 size-4" /> {bookmarked ? "برداشتن نشان" : "ذخیره در نشان‌شده‌ها"}
+                  <Star className="me-2 size-4" />{" "}
+                  {bookmarked ? "برداشتن نشان" : "ذخیره در نشان‌شده‌ها"}
                 </DropdownMenuItem>
               )}
               {canEdit && onEdit && (
@@ -386,7 +506,10 @@ export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, r
                 </DropdownMenuItem>
               )}
               {canEdit && onDelete && (
-                <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => onDelete()}>
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={() => onDelete()}
+                >
                   <Trash2 className="me-2 size-4" /> حذف پیام
                 </DropdownMenuItem>
               )}
@@ -397,11 +520,24 @@ export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, r
         <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
           {m.f && <Forward className="size-3" aria-label="فوروارد" />}
           {m.e && <Pencil className="size-3" aria-label="ویرایش‌شده" />}
-          {sourceLabel && <span className="rounded-full bg-background/50 px-1.5">{sourceLabel}</span>}
+          {sourceLabel && (
+            <span className="rounded-full bg-background/50 px-1.5">{sourceLabel}</span>
+          )}
           <span>{fmtTime(m.t)}</span>
           {onBookmark && (
-            <button type="button" onClick={onBookmark} aria-label={bookmarked ? "حذف نشان" : "نشان کردن"} aria-pressed={bookmarked} className="p-0.5">
-              <Star className={cn("size-3.5", bookmarked ? "fill-gold text-gold" : "opacity-50 group-hover:opacity-100")} />
+            <button
+              type="button"
+              onClick={onBookmark}
+              aria-label={bookmarked ? "حذف نشان" : "نشان کردن"}
+              aria-pressed={bookmarked}
+              className="p-0.5"
+            >
+              <Star
+                className={cn(
+                  "size-3.5",
+                  bookmarked ? "fill-gold text-gold" : "opacity-50 group-hover:opacity-100",
+                )}
+              />
             </button>
           )}
         </div>

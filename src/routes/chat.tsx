@@ -2,17 +2,29 @@ import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tansta
 import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, LoaderCircle, LogOut, MessageCircle } from "lucide-react";
+import { ArrowRight, LoaderCircle, LogOut, MessageCircle, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Bubble, DayDivider } from "@/components/mae/Bubble";
 import {
-  chatError, getMyProfile, getSession, listMessages,
-  signOut, subscribeMessages, editLiveMessage, deleteLiveMessage
+  chatError,
+  getMyProfile,
+  getSession,
+  listMessages,
+  signOut,
+  subscribeMessages,
+  editLiveMessage,
+  deleteLiveMessage,
 } from "@/lib/chat/api";
 import type { Profile } from "@/lib/chat/types";
 import {
-  syncRemoteArchiveAfterLogin, loadOlderArchiveMessages, hasOlderArchiveMessages, useStore, toggleBookmark,
-  upsertLiveChatMessages, updateLiveMessageInStore, removeLiveMessageFromStore
+  syncRemoteArchiveAfterLogin,
+  loadOlderArchiveMessages,
+  hasOlderArchiveMessages,
+  useStore,
+  toggleBookmark,
+  upsertLiveChatMessages,
+  updateLiveMessageInStore,
+  removeLiveMessageFromStore,
 } from "@/lib/mae/store";
 import { setViewer } from "@/lib/mae/viewer";
 import { dayKey, fmtDate } from "@/lib/mae/time";
@@ -27,13 +39,13 @@ export const Route = createFileRoute("/chat")({
       { property: "og:title", content: "M AND E · چت" },
       { property: "og:description", content: "آرشیو و گفتگوی زنده در یک صفحه" },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" }
-    ]
+      { name: "twitter:card", content: "summary" },
+    ],
   }),
   beforeLoad: async () => {
-    if (!await getSession()) throw redirect({ to: "/login" });
+    if (!(await getSession())) throw redirect({ to: "/login" });
   },
-  component: Chat
+  component: Chat,
 });
 
 function Chat() {
@@ -53,9 +65,10 @@ function Chat() {
   const [leaving, setLeaving] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [editingMessage, setEditingMessage] = useState<{ uid: string; text: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const loadingOlderRef = useRef(false);
   const initialScrollDone = useRef(false);
-
 
   const scrollRef = useRef<HTMLElement | null>(null);
   const activeProfile = useRef<Profile | null>(null);
@@ -66,7 +79,7 @@ function Chat() {
     estimateSize: () => 100,
     getItemKey: (index) => messages[index]?.u ?? index,
 
-    overscan: 18
+    overscan: 18,
   });
 
   useEffect(() => {
@@ -83,7 +96,10 @@ function Chat() {
       try {
         const rows = await listMessages(me);
         if (!active) return;
-        await upsertLiveChatMessages(rows.filter((row) => row.source === "live"), me);
+        await upsertLiveChatMessages(
+          rows.filter((row) => row.source === "live"),
+          me,
+        );
         if (active) setError("");
       } catch (err) {
         if (active) setError(chatError(err));
@@ -112,17 +128,22 @@ function Chat() {
 
         if (!active) return;
 
-        cleanup = subscribeMessages((message) => {
-          if (active) void upsertLiveChatMessages([message], me);
-        }, (status) => {
-          if (!active) return;
-          setConnection(status);
-          if (status === "SUBSCRIBED") void refresh();
-        }, (message) => {
-          if (active) void updateLiveMessageInStore(message);
-        }, (id) => {
-          if (active) void removeLiveMessageFromStore(id);
-        });
+        cleanup = subscribeMessages(
+          (message) => {
+            if (active) void upsertLiveChatMessages([message], me);
+          },
+          (status) => {
+            if (!active) return;
+            setConnection(status);
+            if (status === "SUBSCRIBED") void refresh();
+          },
+          (message) => {
+            if (active) void updateLiveMessageInStore(message);
+          },
+          (id) => {
+            if (active) void removeLiveMessageFromStore(id);
+          },
+        );
 
         await refresh();
       } catch (err) {
@@ -179,8 +200,13 @@ function Chat() {
 
   async function loadOlder() {
     const element = scrollRef.current;
-    if (!element || element.scrollTop > 220 ||
-        loadingOlderRef.current || !hasOlderArchiveMessages()) return;
+    if (
+      !element ||
+      element.scrollTop > 220 ||
+      loadingOlderRef.current ||
+      !hasOlderArchiveMessages()
+    )
+      return;
 
     loadingOlderRef.current = true;
     setLoadingOlder(true);
@@ -201,31 +227,40 @@ function Chat() {
     }
   }
 
-
-  async function editMessage(uid: string, currentText: string) {
+  function editMessage(uid: string, currentText: string) {
     if (!uid.startsWith("live:")) {
       setError("پیام‌های آرشیوی قابل ویرایش نیستند.");
       return;
     }
-    const next = window.prompt("متن جدید پیام:", currentText);
-    if (next === null || next.trim() === currentText.trim()) return;
-    try {
-      const row = await editLiveMessage(uid.slice(5), next);
-      await updateLiveMessageInStore(row);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "ویرایش پیام انجام نشد.");
-    }
+
+    setError("");
+    setEditingMessage({ uid, text: currentText });
   }
 
-  async function deleteMessage(uid: string) {
+  async function saveEditedMessage(uid: string, text: string) {
+    const row = await editLiveMessage(uid.slice(5), text);
+    await updateLiveMessageInStore(row);
+    setEditingMessage(null);
+  }
+
+  function deleteMessage(uid: string) {
     if (!uid.startsWith("live:")) {
       setError("پیام‌های آرشیوی قابل حذف نیستند.");
       return;
     }
-    if (!window.confirm("این پیام برای همه حذف شود؟")) return;
+
+    setDeleteTarget(uid);
+  }
+
+  async function confirmDeleteMessage() {
+    if (!deleteTarget) return;
+
+    const uid = deleteTarget;
+
     try {
       await deleteLiveMessage(uid.slice(5));
       await removeLiveMessageFromStore(uid.slice(5));
+      setDeleteTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "حذف پیام انجام نشد.");
     }
@@ -256,8 +291,11 @@ function Chat() {
             <h1 className="truncate font-display text-2xl">چت</h1>
             <p className="text-xs text-muted-foreground">
               {profile ? `${profile.side} · ` : ""}
-              {connection === "SUBSCRIBED" ? "متصل" :
-                connection === "CONNECTING" ? "در حال اتصال…" : "اتصال زنده قطع است"}
+              {connection === "SUBSCRIBED"
+                ? "متصل"
+                : connection === "CONNECTING"
+                  ? "در حال اتصال…"
+                  : "اتصال زنده قطع است"}
               {" · "}
               {messages.length.toLocaleString("fa-IR")} پیام
             </p>
@@ -266,17 +304,29 @@ function Chat() {
 
         <div className="flex shrink-0 gap-1">
           <Button asChild variant="ghost" size="icon" title="خانه" aria-label="خانه">
-            <Link to="/"><ArrowRight /></Link>
+            <Link to="/">
+              <ArrowRight />
+            </Link>
           </Button>
-          <Button onClick={logout} disabled={leaving} variant="ghost" size="icon"
-            title="خروج از حساب" aria-label="خروج از حساب">
+          <Button
+            onClick={logout}
+            disabled={leaving}
+            variant="ghost"
+            size="icon"
+            title="خروج از حساب"
+            aria-label="خروج از حساب"
+          >
             <LogOut />
           </Button>
         </div>
       </header>
 
-      <section ref={scrollRef} onScroll={() => void loadOlder()} className="min-h-0 flex-1 overflow-y-auto py-4"
-        aria-label="همه پیام‌ها">
+      <section
+        ref={scrollRef}
+        onScroll={() => void loadOlder()}
+        className="min-h-0 flex-1 overflow-y-auto py-4"
+        aria-label="همه پیام‌ها"
+      >
         {loadingOlder && (
           <p className="py-3 text-center text-xs text-muted-foreground">
             در حال بارگذاری پیام‌های قدیمی‌تر…
@@ -284,7 +334,10 @@ function Chat() {
         )}
 
         {loading && (
-          <p role="status" className="flex items-center justify-center gap-2 p-8 text-muted-foreground">
+          <p
+            role="status"
+            className="flex items-center justify-center gap-2 p-8 text-muted-foreground"
+          >
             <LoaderCircle className="size-5 animate-spin" />
             در حال دریافت پیام‌های اخیر…
           </p>
@@ -316,7 +369,7 @@ function Chat() {
                     top: 0,
                     left: 0,
                     width: "100%",
-                    transform: `translateY(${item.start}px)`
+                    transform: `translateY(${item.start}px)`,
                   }}
                 >
                   {(!previous || dayKey(message.t) !== dayKey(previous.t)) && (
@@ -342,16 +395,79 @@ function Chat() {
 
       {error && (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2">
-          <p role="alert" className="text-sm text-destructive">{error}</p>
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
           <Button variant="ghost" size="sm" onClick={() => setAttempt((n) => n + 1)}>
             تلاش دوباره
           </Button>
         </div>
       )}
 
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-[160] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+          role="presentation"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-message-title"
+            className="w-full max-w-sm rounded-3xl border border-white/15 bg-background p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <span className="grid size-11 place-items-center rounded-2xl bg-destructive/10 text-destructive">
+                <Trash2 className="size-5" />
+              </span>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground"
+                aria-label="بستن"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <h2 id="delete-message-title" className="text-lg font-bold">
+              حذف این پیام؟
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              این پیام از گفتگوی زنده حذف می‌شود و این کار قابل بازگشت نیست.
+            </p>
+
+            <div className="mt-5 flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 rounded-xl"
+                onClick={() => setDeleteTarget(null)}
+              >
+                انصراف
+              </Button>
+
+              <Button
+                type="button"
+                variant="destructive"
+                className="flex-1 rounded-xl"
+                onClick={() => void confirmDeleteMessage()}
+              >
+                حذف پیام
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
+
       <Composer
         profile={profile}
         disabled={loading}
+        editingMessage={editingMessage}
+        onEditSubmit={saveEditedMessage}
+        onCancelEdit={() => setEditingMessage(null)}
         onSent={(message) => void upsertLiveChatMessages([message], profile!)}
         onError={setError}
         onVideoRecordingStarted={() => {
@@ -360,7 +476,7 @@ function Chat() {
             if (element) {
               element.scrollTo({
                 top: element.scrollHeight,
-                behavior: "smooth"
+                behavior: "smooth",
               });
             }
           });
