@@ -31,7 +31,21 @@ dist-ssr
 *.sln
 *.sw?
 # Capacitor / Android local
-android/
+# Android: track only hand-written native source/config; everything else stays ignored.
+android/*
+!android/app/
+android/app/*
+!android/app/build.gradle
+!android/app/src/
+android/app/src/*
+!android/app/src/main/
+android/app/src/main/*
+!android/app/src/main/AndroidManifest.xml
+!android/app/src/main/java/
+!android/app/src/main/res/
+android/app/src/main/res/xml/config.xml
+android/app/src/main/assets/
+android/app/google-services.json
 ios/
 .capacitor/
 .env
