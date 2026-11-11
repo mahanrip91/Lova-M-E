@@ -422,6 +422,74 @@ export async function loadOlderArchiveMessages(): Promise<number> {
   }
 }
 
+
+
+/**
+ * Loads a selected memory range plus six hours of surrounding context.
+ * Uses bounded pages instead of downloading the entire archive.
+ */
+export async function ensureArchiveRange(from: number, to: number): Promise<number> {
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return 0;
+
+  const startAt = new Date(from - 6 * 60 * 60 * 1000).toISOString();
+  const endAt = new Date(to + 6 * 60 * 60 * 1000).toISOString();
+  const pageSize = 1000;
+  const rows: any[] = [];
+
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from("archive_messages")
+      .select("uid,source_id,occurred_at,sender_key,body,kind,original_order,reply_uid,media_label,is_edited,is_forwarded")
+      .gte("occurred_at", startAt)
+      .lte("occurred_at", endAt)
+      .order("occurred_at", { ascending: true })
+      .order("uid", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < pageSize) break;
+  }
+
+  const kindMap: Record<string, Msg["kd"]> = {
+    text: "text", image: "image", gif: "gif", video: "video",
+    voice: "voice", music: "music", file: "file", sticker: "sticker",
+    post: "post", nontext: "nontext"
+  };
+
+  const incoming: Msg[] = rows.map((r: any) => {
+    const m: Msg = {
+      u: `archive:${r.uid}`,
+      s: r.source_id,
+      t: Date.parse(r.occurred_at),
+      k: `${r.source_id}:${r.sender_key}`,
+      x: r.body ?? "",
+      kd: kindMap[r.kind] ?? "nontext",
+      o: Number(r.original_order)
+    };
+    if (r.reply_uid) m.r = `archive:${r.reply_uid}`;
+    if (r.media_label) m.m = r.media_label;
+    if (r.is_edited) m.e = 1;
+    if (r.is_forwarded) m.f = 1;
+    return m;
+  });
+
+  const seen = new Set(state.messages.map((m) => m.u));
+  const merged = sortMessages(
+    [...state.messages, ...incoming.filter((m) => !seen.has(m.u))],
+    state.sources.map((source) => source.id)
+  );
+
+  await set("mae:messages", merged);
+  setState({
+    messages: merged,
+    status: merged.length ? "ready" : "empty",
+    ...derive(merged, state.sides)
+  });
+
+  return incoming.length;
+}
+
 let started = false;
 export function initStore() {
   if (started || typeof window === "undefined") return;

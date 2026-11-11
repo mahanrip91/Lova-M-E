@@ -1,21 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import EmojiPicker from "emoji-picker-react";
 import {
-  Camera, Image as ImageIcon, LoaderCircle, Mic, Search, Send, Smile, Square, Video, X, Film
+  Camera, Image as ImageIcon, LoaderCircle, Mic, Send, Smile, Square, Video, X, Film
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { sendMediaMessage, sendTextMessage } from "@/lib/chat/api";
 import type { ChatMessage, Profile } from "@/lib/chat/types";
 
-const emojiGroups = [
-  { name: "اخیراً", icon: "🕘", items: ["😂","❤️","🥹","😭","😍","🔥","😘","🤣","✨","🫶","💀","😎","🥰","🤍","💔","🙃"] },
-  { name: "صورت‌ها", icon: "😀", items: ["😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","☺️","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🤗","🤔","🫣","🤭","🫢","🫡","🤫","🫠","🤥","😶","🫥","😐","😑","😬","🙄","😮‍💨","😴","🤤","😪","😵","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕"] },
-  { name: "دست‌ها", icon: "👋", items: ["👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","👇","☝️","🫵","👍","👎","✊","👊","🤛","🤜","👏","🙌","👐","🤲","🤝","🙏","✍️","💅","🤳","💪"] },
-  { name: "قلب‌ها", icon: "❤️", items: ["❤️","🩷","🧡","💛","💚","💙","🩵","💜","🤎","🖤","🩶","🤍","💔","❤️‍🔥","❤️‍🩹","💕","💞","💓","💗","💖","💘","💝","💟","❣️","💌"] },
-  { name: "طبیعت", icon: "🌿", items: ["🌸","🌹","🌺","🌻","🌼","🌷","🪻","💐","🍀","🌿","🌱","🌳","🌴","🌵","🌾","🍁","🍂","🍃","🌈","☀️","🌙","⭐","🌟","✨","⚡","🔥","❄️","☁️","🌊","🌍"] },
-  { name: "غذا", icon: "🍕", items: ["🍕","🍔","🍟","🌭","🍿","🧋","☕","🍵","🥤","🍦","🍩","🍪","🎂","🍰","🧁","🍫","🍓","🍒","🍉","🍇","🍑","🥑","🍎","🍌","🍍","🥭","🍋"] },
-  { name: "سرگرمی", icon: "⚽", items: ["⚽","🏀","🏈","⚾","🎾","🏐","🥊","🥋","🏆","🥇","🎮","🎧","🎵","🎶","🎤","🎬","🎨","🎯","🎲","🧩","🚀","✈️","🚗","🏎️","🛸"] },
-  { name: "نمادها", icon: "💯", items: ["💯","💢","💥","💫","💦","💨","💤","🎉","🎊","🎈","🎁","🎀","🏳️‍🌈","♾️","❤️‍🔥","☮️","☯️","✝️","☪️","⚛️","🔱","⚜️","🔰","✅","❌","❗","❓","‼️","⁉️","🔔","🔕"] },
-];
+
 
 function ImageFilePreview({ file }: { file: File }) {
   const [url, setUrl] = useState("");
@@ -42,10 +34,12 @@ type Props = {
 export function Composer({ profile, disabled, onSent, onError }: Props) {
   const [body, setBody] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
-  const [emojiTab, setEmojiTab] = useState(0);
-  const [emojiSearch, setEmojiSearch] = useState("");
   const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState<"voice" | "video" | null>(null);
+  const [capturedMedia, setCapturedMedia] = useState<{
+    blob: Blob; kind: "voice" | "video"; url: string
+  } | null>(null);
+
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -55,6 +49,11 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
   const stream = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
   const videoPreview = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    if (!capturedMedia) return;
+    return () => URL.revokeObjectURL(capturedMedia.url);
+  }, [capturedMedia]);
+
 
   useEffect(() => {
     if (videoPreview.current && cameraStream) {
@@ -67,10 +66,6 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
     recorder.current?.state !== "inactive" && recorder.current?.stop();
     stream.current?.getTracks().forEach((track) => track.stop());
   }, []);
-
-  const filtered = emojiGroups[emojiTab]?.items.filter((emoji) =>
-    !emojiSearch || emoji.includes(emojiSearch)
-  ) ?? [];
 
   function stopStream() {
     stream.current?.getTracks().forEach((track) => track.stop());
@@ -98,20 +93,14 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size) chunks.current.push(event.data);
       };
-      mediaRecorder.onstop = async () => {
-        const blob = new Blob(chunks.current, { type: mediaRecorder.mimeType || (kind === "voice" ? "audio/webm" : "video/webm") });
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks.current, {
+          type: mediaRecorder.mimeType || (kind === "voice" ? "audio/webm" : "video/webm")
+        });
         stopStream();
         setRecording(null);
         if (!blob.size) return;
-        setMediaBusy(true);
-        try {
-          const message = await sendMediaMessage(blob, kind, profile.id);
-          onSent(message);
-        } catch (error) {
-          onError(error instanceof Error ? error.message : "ارسال رسانه ناموفق بود.");
-        } finally {
-          setMediaBusy(false);
-        }
+        setCapturedMedia({ blob, kind, url: URL.createObjectURL(blob) });
       };
       recorder.current = mediaRecorder;
       mediaRecorder.start(250);
@@ -124,6 +113,21 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
 
   function stopRecording() {
     if (recorder.current?.state === "recording") recorder.current.stop();
+  }
+
+
+  async function sendCapturedMedia() {
+    if (!profile || !capturedMedia || mediaBusy) return;
+    setMediaBusy(true);
+    try {
+      const message = await sendMediaMessage(capturedMedia.blob, capturedMedia.kind, profile.id);
+      onSent(message);
+      setCapturedMedia(null);
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "ارسال رسانه ناموفق بود.");
+    } finally {
+      setMediaBusy(false);
+    }
   }
 
   function addFiles(list: FileList | null) {
@@ -194,10 +198,52 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
     }
   }
 
-  const blocked = !profile || disabled || sending || mediaBusy;
+  const blocked = !profile || disabled || sending || mediaBusy || !!capturedMedia;
 
   return (
     <div className="glass relative shrink-0 border-t border-white/10 px-3 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+
+      {capturedMedia && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
+          <section className="w-full max-w-lg overflow-hidden rounded-[2rem] border border-white/15 bg-background shadow-2xl">
+            <header className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div>
+                <p className="font-bold">پیش‌نمایش پیام ضبط‌شده</p>
+                <p className="text-xs text-muted-foreground">قبل از ارسال، گوش کن یا تماشایش کن</p>
+              </div>
+              <button type="button" onClick={() => setCapturedMedia(null)} disabled={mediaBusy}
+                className="grid size-9 place-items-center rounded-full bg-muted" aria-label="بستن پیش‌نمایش">
+                <X className="size-4" />
+              </button>
+            </header>
+            <div className="flex min-h-48 items-center justify-center bg-black p-3">
+              {capturedMedia.kind === "video" ? (
+                <video src={capturedMedia.url} controls playsInline className="max-h-[65vh] w-full rounded-2xl object-contain" />
+              ) : (
+                <div className="w-full rounded-2xl bg-gradient-to-br from-primary/20 via-background to-fuchsia-500/20 p-6 text-center">
+                  <div className="mx-auto mb-4 grid size-20 place-items-center rounded-full bg-primary/15 text-primary ring-1 ring-primary/30">
+                    <Mic className="size-9" />
+                  </div>
+                  <p className="mb-4 font-semibold">پیام صوتی آمادهٔ ارسال</p>
+                  <audio src={capturedMedia.url} controls className="w-full" />
+                </div>
+              )}
+            </div>
+            <footer className="flex gap-3 p-4">
+              <Button type="button" variant="outline" className="flex-1 rounded-xl"
+                disabled={mediaBusy} onClick={() => setCapturedMedia(null)}>
+                ضبط دوباره
+              </Button>
+              <Button type="button" className="flex-1 rounded-xl" disabled={mediaBusy}
+                onClick={() => void sendCapturedMedia()}>
+                {mediaBusy ? <LoaderCircle className="animate-spin" /> : <Send className="size-4" />}
+                تأیید و ارسال
+              </Button>
+            </footer>
+          </section>
+        </div>
+      )}
+
       {selectedFiles.length > 0 && (
         <div className="mb-3 rounded-2xl border border-primary/20 bg-background/80 p-3">
           <div className="mb-2 flex items-center justify-between">
@@ -239,16 +285,22 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
       )}
 
       {recording === "video" && cameraStream && (
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-background/80 p-3">
-          <div className="flex items-center gap-3">
-            <video ref={videoPreview} muted playsInline className="size-16 rounded-full bg-black object-cover ring-2 ring-primary" />
+        <div className="fixed inset-0 z-[110] flex flex-col items-center justify-center bg-black/95 p-3">
+          <div className="mb-3 flex w-full max-w-lg items-center justify-between text-white">
             <div>
-              <p className="text-sm font-semibold">در حال ضبط ویدیو مسیج</p>
-              <p className="text-xs text-muted-foreground">برای ارسال، ضبط را متوقف کن</p>
+              <p className="font-bold">در حال ضبط ویدیو مسیج</p>
+              <p className="text-xs text-white/60">بعد از توقف، پیش‌نمایش و تأیید ارسال نمایش داده می‌شود</p>
             </div>
+            <span className="flex items-center gap-2 text-xs text-red-400">
+              <span className="size-2 animate-pulse rounded-full bg-red-500" /> ضبط
+            </span>
           </div>
-          <Button type="button" size="icon" variant="destructive" onClick={stopRecording} aria-label="پایان ضبط">
-            <Square className="size-4" />
+          <video ref={videoPreview} muted playsInline
+            className="aspect-[3/4] max-h-[72vh] w-full max-w-lg rounded-[2rem] bg-black object-cover ring-1 ring-white/20" />
+          <Button type="button" size="lg" variant="destructive"
+            className="mt-5 h-14 w-full max-w-lg rounded-2xl text-base"
+            onClick={stopRecording}>
+            <Square className="size-5" /> توقف ضبط
           </Button>
         </div>
       )}
@@ -266,34 +318,22 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
       )}
 
       {emojiOpen && (
-        <div className="absolute bottom-full left-2 right-2 z-30 mb-2 overflow-hidden rounded-2xl border border-primary/20 bg-background/95 shadow-2xl backdrop-blur-xl">
-          <div className="flex items-center gap-2 border-b border-border p-2">
-            <Search className="size-4 text-muted-foreground" />
-            <input value={emojiSearch} onChange={(e) => setEmojiSearch(e.target.value)}
-              placeholder="جست‌وجوی شکلک…" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+        <div className="absolute bottom-full left-2 right-2 z-40 mb-2 overflow-hidden rounded-2xl border border-primary/20 bg-background shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+            <span className="text-sm font-semibold">همهٔ شکلک‌ها</span>
             <button type="button" onClick={() => setEmojiOpen(false)} aria-label="بستن شکلک‌ها">
               <X className="size-4" />
             </button>
           </div>
-          <div className="flex gap-1 overflow-x-auto border-b border-border px-2 py-1.5">
-            {emojiGroups.map((group, index) => (
-              <button type="button" key={group.name} title={group.name}
-                onClick={() => { setEmojiTab(index); setEmojiSearch(""); }}
-                className={`rounded-lg px-2 py-1.5 text-lg ${emojiTab === index ? "bg-primary/20" : "hover:bg-muted"}`}>
-                {group.icon}
-              </button>
-            ))}
-          </div>
-          <div className="grid max-h-44 grid-cols-8 gap-1 overflow-y-auto p-2">
-            {filtered.map((emoji, index) => (
-              <button type="button" key={`${emoji}-${index}`}
-                onClick={() => setBody((value) => value + emoji)}
-                className="rounded-lg p-1.5 text-2xl transition hover:scale-125 hover:bg-muted">
-                {emoji}
-              </button>
-            ))}
-          </div>
-          <p className="px-3 pb-2 text-[10px] text-muted-foreground">شکلک‌ها با فونت دستگاه نمایش داده می‌شوند.</p>
+          <EmojiPicker
+            onEmojiClick={(item) => setBody((value) => value + item.emoji)}
+            width="100%"
+            height={340}
+            searchPlaceHolder="جست‌وجوی شکلک…"
+            previewConfig={{ showPreview: false }}
+            skinTonesDisabled={false}
+            lazyLoadEmojis
+          />
         </div>
       )}
 

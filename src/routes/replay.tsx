@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FastForward, Pause, Play, Rewind, SkipBack, SkipForward, Moon, Info } from "lucide-react";
-import { useStore, getState } from "@/lib/mae/store";
+import { useStore, getState, ensureArchiveRange } from "@/lib/mae/store";
 import { sliceRange, splitAtMidnight } from "@/lib/mae/analysis";
 import { dayKey, dayStartMs, fa, fmtDate, fmtDateTime, fmtDuration, fmtTime } from "@/lib/mae/time";
 import { Bubble, DayDivider } from "@/components/mae/Bubble";
@@ -44,8 +44,31 @@ function Replay() {
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
+  const [rangeLoading, setRangeLoading] = useState(false);
+  const [rangeError, setRangeError] = useState("");
+
   const endRef = useRef<HTMLDivElement>(null);
   const srcLabel = useMemo(() => Object.fromEntries(sources.map((s) => [s.id, s.label])), [sources]);
+
+  useEffect(() => {
+    if (status !== "ready" || !from || !to || to < from) return;
+    let cancelled = false;
+    setRangeLoading(true);
+    setRangeError("");
+
+    void ensureArchiveRange(from, to)
+      .catch((error) => {
+        if (!cancelled) {
+          setRangeError(error instanceof Error ? error.message : "بارگذاری خاطره ناموفق بود.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRangeLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [status, from, to]);
+
 
   useEffect(() => { setIdx(0); setPhase("intro"); setPlaying(true); }, [from, to]);
   useEffect(() => {
@@ -83,6 +106,26 @@ function Replay() {
   if (missingSource) {
     return <p className="p-8 text-center">آرشیو این خاطره هنوز روی این دستگاه نیست. <Link to="/import" className="text-primary underline">وارد کردن آرشیو</Link></p>;
   }
+
+  if (rangeLoading) {
+    return (
+      <main className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-6 text-center">
+        <div className="mb-4 size-12 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+        <h2 className="font-display text-2xl text-love">داریم خاطره رو پیدا می‌کنیم…</h2>
+        <p className="mt-2 text-sm text-muted-foreground">پیام‌های این بازه و گفتگوهای اطرافش در حال بارگذاری‌اند.</p>
+      </main>
+    );
+  }
+
+  if (rangeError && msgs.length === 0) {
+    return (
+      <main className="mx-auto max-w-xl p-8 text-center">
+        <p className="text-sm text-destructive">{rangeError}</p>
+        <button type="button" onClick={() => void ensureArchiveRange(from, to)} className="mt-4 rounded-full bg-love px-5 py-2 text-primary-foreground">تلاش دوباره</button>
+      </main>
+    );
+  }
+
   if (phase === "intro") {
     return (
       <main className="mx-auto flex min-h-[85vh] max-w-xl flex-col items-center justify-center px-6 text-center">
