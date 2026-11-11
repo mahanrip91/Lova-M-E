@@ -1,5 +1,5 @@
-import { memo, useEffect, useState } from "react";
-import { Forward, Image as ImageIcon, Mic, Music, Paperclip, Pencil, Smile, Star, Video, Film, Box } from "lucide-react";
+import { memo, useEffect, useRef, useState } from "react";
+import { Forward, Image as ImageIcon, Mic, Music, Paperclip, Pencil, Smile, Star, Video, Film, Box, MoreVertical, Copy, Trash2, Share2, Edit3 } from "lucide-react";
 import type { Msg } from "@/lib/mae/parse";
 import { fmtTime } from "@/lib/mae/time";
 import { cn } from "@/lib/utils";
@@ -30,14 +30,20 @@ export interface BubbleProps {
   onReplyClick?: (() => void) | undefined;
   highlight?: boolean | undefined;
   animate?: boolean | undefined;
+  canEdit?: boolean | undefined;
+  onEdit?: (() => void) | undefined;
+  onDelete?: (() => void) | undefined;
 }
 
-export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, reply, replyMissing, bookmarked, onBookmark, onReplyClick, highlight, animate }: BubbleProps) {
+export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, reply, replyMissing, bookmarked, onBookmark, onReplyClick, highlight, animate, canEdit, onEdit, onDelete }: BubbleProps) {
   const viewer = useViewer() ?? "M";
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState("");
   const [imageExpanded, setImageExpanded] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
 
   useEffect(() => {
     setMediaUrl("");
@@ -115,9 +121,9 @@ export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, r
                 </span>
               </button>
             ) : m.kd === "voice" ? (
-              <audio className="w-64 max-w-full" controls preload="none" src={mediaUrl} />
+              <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-fuchsia-500/10 p-3 shadow-inner"><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-primary"><Mic className="size-4" /> پیام صوتی</div><audio className="w-full max-w-full accent-primary" controls preload="metadata" src={mediaUrl} /></div>
             ) : m.kd === "video" ? (
-              <video className="aspect-square w-52 max-w-full rounded-full bg-black object-cover" controls playsInline preload="none" src={mediaUrl} />
+              <div className="overflow-hidden rounded-2xl border border-primary/20 bg-black shadow-xl"><video className="max-h-80 w-full rounded-2xl bg-black object-contain" controls playsInline preload="metadata" src={mediaUrl} /></div>
             ) : (
               <button
               type="button"
@@ -160,6 +166,71 @@ export const Bubble = memo(function Bubble({ m, side, senderName, sourceLabel, r
         )}
 
         {m.x && <p className="whitespace-pre-wrap break-words">{m.x}</p>}
+
+        <div className="absolute -top-3 end-1 z-20">
+          <button
+            type="button"
+            onClick={() => setActionsOpen((v) => !v)}
+            className="grid size-8 place-items-center rounded-full border border-white/10 bg-background/95 text-muted-foreground shadow-lg backdrop-blur"
+            aria-label="عملیات پیام"
+            aria-expanded={actionsOpen}
+          >
+            <MoreVertical className="size-4" />
+          </button>
+          {actionsOpen && (
+            <div className="absolute end-0 top-9 z-50 min-w-48 overflow-hidden rounded-2xl border border-border bg-popover p-1 text-popover-foreground shadow-2xl">
+              <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm hover:bg-muted"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(m.x || "");
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  } catch {
+                    const area = document.createElement("textarea");
+                    area.value = m.x || "";
+                    document.body.appendChild(area);
+                    area.select();
+                    document.execCommand("copy");
+                    area.remove();
+                    setCopied(true);
+                  }
+                  setActionsOpen(false);
+                }}>
+                <Copy className="size-4" /> {copied ? "کپی شد" : "کپی متن"}
+              </button>
+              <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm hover:bg-muted"
+                onClick={async () => {
+                  const text = m.x || `${k?.label || "پیام رسانه‌ای"} · ${fmtTime(m.t)}`;
+                  try {
+                    if (navigator.share) await navigator.share({ text });
+                    else await navigator.clipboard.writeText(text);
+                  } catch {}
+                  setActionsOpen(false);
+                }}>
+                <Share2 className="size-4" /> اشتراک‌گذاری
+              </button>
+              {onBookmark && (
+                <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm hover:bg-muted"
+                  onClick={() => { onBookmark(); setActionsOpen(false); }}>
+                  <Star className="size-4" /> {bookmarked ? "برداشتن نشان" : "ذخیره در نشان‌شده‌ها"}
+                </button>
+              )}
+              {canEdit && onEdit && (
+                <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm hover:bg-muted"
+                  onClick={() => { setActionsOpen(false); onEdit(); }}>
+                  <Edit3 className="size-4" /> ویرایش پیام
+                </button>
+              )}
+              {canEdit && onDelete && (
+                <button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm text-destructive hover:bg-destructive/10"
+                  onClick={() => { setActionsOpen(false); onDelete(); }}>
+                  <Trash2 className="size-4" /> حذف پیام
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
           {m.f && <Forward className="size-3" aria-label="فوروارد" />}
           {m.e && <Pencil className="size-3" aria-label="ویرایش‌شده" />}

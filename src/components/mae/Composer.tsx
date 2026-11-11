@@ -285,7 +285,7 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
       )}
 
       {recording === "video" && cameraStream && (
-        <div className="fixed inset-0 z-[110] flex flex-col items-center justify-center bg-black/95 p-3">
+        <div className="fixed inset-0 z-[110] grid h-[100dvh] w-screen grid-rows-[auto_1fr_auto] items-center justify-items-center overflow-hidden bg-black/95 px-4 pt-[max(env(safe-area-inset-top),1rem)] pb-[max(env(safe-area-inset-bottom),1rem)]">
           <div className="mb-3 flex w-full max-w-lg items-center justify-between text-white">
             <div>
               <p className="font-bold">در حال ضبط ویدیو مسیج</p>
@@ -296,9 +296,9 @@ export function Composer({ profile, disabled, onSent, onError }: Props) {
             </span>
           </div>
           <video ref={videoPreview} muted playsInline
-            className="aspect-[3/4] max-h-[72vh] w-full max-w-lg rounded-[2rem] bg-black object-cover ring-1 ring-white/20" />
+            className="aspect-[3/4] max-h-[min(68dvh,680px)] min-h-0 w-auto max-w-full rounded-[2rem] bg-black object-cover ring-1 ring-white/20 shadow-[0_0_60px_rgba(130,80,255,0.18)]" />
           <Button type="button" size="lg" variant="destructive"
-            className="mt-5 h-14 w-full max-w-lg rounded-2xl text-base"
+            className="mb-1 mt-3 h-14 w-full max-w-lg rounded-2xl text-base"
             onClick={stopRecording}>
             <Square className="size-5" /> توقف ضبط
           </Button>

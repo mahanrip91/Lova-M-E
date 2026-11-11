@@ -239,3 +239,49 @@ export async function getChatMediaBlob(path: string): Promise<Blob> {
   }
   return data;
 }
+
+
+export async function editLiveMessage(id: string, body: string): Promise<ChatMessage> {
+  const clean = body.trim();
+  if (!clean) throw new Error("متن پیام نمی‌تواند خالی باشد.");
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!auth.user) throw new Error("نشست کاربری معتبر نیست.");
+
+  const { data, error } = await supabase.from("messages")
+    .update({ body: clean, edited_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("sender_id", auth.user.id)
+    .select(messageColumns)
+    .single();
+
+  if (error) throw error;
+  return data as ChatMessage;
+}
+
+export async function deleteLiveMessage(id: string): Promise<void> {
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!auth.user) throw new Error("نشست کاربری معتبر نیست.");
+
+  const { data: row, error: readError } = await supabase.from("messages")
+    .select("id,media_path")
+    .eq("id", id)
+    .eq("sender_id", auth.user.id)
+    .single();
+
+  if (readError) throw readError;
+
+  const { error } = await supabase.from("messages")
+    .delete()
+    .eq("id", id)
+    .eq("sender_id", auth.user.id);
+
+  if (error) throw error;
+
+  if (row?.media_path) {
+    const { error: storageError } = await supabase.storage
+      .from("chat-media").remove([row.media_path]);
+    if (storageError) console.warn("Media cleanup failed:", storageError);
+  }
+}

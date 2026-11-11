@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Bubble, DayDivider } from "@/components/mae/Bubble";
 import {
   chatError, getMyProfile, getSession, listMessages,
-  signOut, subscribeMessages
+  signOut, subscribeMessages, editLiveMessage, deleteLiveMessage
 } from "@/lib/chat/api";
 import type { Profile } from "@/lib/chat/types";
 import {
   syncRemoteArchiveAfterLogin, loadOlderArchiveMessages, hasOlderArchiveMessages, useStore, toggleBookmark,
-  upsertLiveChatMessages
+  upsertLiveChatMessages, updateLiveMessageInStore, removeLiveMessageFromStore
 } from "@/lib/mae/store";
 import { setViewer } from "@/lib/mae/viewer";
 import { dayKey, fmtDate } from "@/lib/mae/time";
@@ -197,6 +197,36 @@ function Chat() {
     }
   }
 
+
+  async function editMessage(uid: string, currentText: string) {
+    if (!uid.startsWith("live:")) {
+      setError("پیام‌های آرشیوی قابل ویرایش نیستند.");
+      return;
+    }
+    const next = window.prompt("متن جدید پیام:", currentText);
+    if (next === null || next.trim() === currentText.trim()) return;
+    try {
+      const row = await editLiveMessage(uid.slice(5), next);
+      await updateLiveMessageInStore(row);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ویرایش پیام انجام نشد.");
+    }
+  }
+
+  async function deleteMessage(uid: string) {
+    if (!uid.startsWith("live:")) {
+      setError("پیام‌های آرشیوی قابل حذف نیستند.");
+      return;
+    }
+    if (!window.confirm("این پیام برای همه حذف شود؟")) return;
+    try {
+      await deleteLiveMessage(uid.slice(5));
+      await removeLiveMessageFromStore(uid.slice(5));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "حذف پیام انجام نشد.");
+    }
+  }
+
   async function logout() {
     setLeaving(true);
     setError("");
@@ -295,6 +325,9 @@ function Chat() {
                     sourceLabel={source?.label}
                     bookmarked={bookmarked}
                     onBookmark={() => void toggleBookmark(message.u)}
+                    canEdit={message.s === "LIVE" && side === profile?.side}
+                    onEdit={() => void editMessage(message.u, message.x)}
+                    onDelete={() => void deleteMessage(message.u)}
                   />
                 </div>
               );

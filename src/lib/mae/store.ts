@@ -343,6 +343,25 @@ export async function upsertLiveChatMessages(rows: ChatMessage[], profile: Profi
   });
 }
 
+
+export async function updateLiveMessageInStore(row: ChatMessage): Promise<void> {
+  const uid = `live:${row.id}`;
+  const messages = state.messages.map((m) => {
+    if (m.u !== uid) return m;
+    const next = { ...m, x: row.body ?? "", e: 1 as const };
+    return next;
+  });
+  await set("mae:messages", messages);
+  setState({ messages, ...derive(messages, state.sides) });
+}
+
+export async function removeLiveMessageFromStore(id: string): Promise<void> {
+  const uid = `live:${id}`;
+  const messages = state.messages.filter((m) => m.u !== uid);
+  await set("mae:messages", messages);
+  setState({ messages, ...derive(messages, state.sides) });
+}
+
 export function syncRemoteArchiveAfterLogin(): Promise<boolean> {
   if (remoteSynced) return Promise.resolve(true);
   if (!remoteSyncPromise) {
