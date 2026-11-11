@@ -22,6 +22,8 @@ import { getGate, type Viewer } from "@/lib/gate.functions";
 import { applyTheme, setViewer, useTheme, useViewer } from "@/lib/mae/viewer";
 import { bypassArchiveGate } from "@/lib/chat/routing";
 import { supabase } from "@/lib/supabase";
+import { getMyProfile } from "@/lib/chat/api";
+import { refreshPushRegistration } from "@/lib/push";
 
 // Client-side cache of the server gate result so navigation stays instant.
 let gateCache: { unlocked: boolean; viewer: Viewer | null } | null = null;
@@ -167,6 +169,33 @@ function RootComponent() {
   useEffect(() => {
     if (viewer) initStore();
   }, [viewer]);
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let active = true;
+
+    const refreshPush = async () => {
+      try {
+        const profile = await getMyProfile();
+        if (active && profile) await refreshPushRegistration(profile.id);
+      } catch (error) {
+        console.warn("M AND E push token refresh failed:", error);
+      }
+    };
+
+    void refreshPush();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") {
+        setTimeout(() => { if (active) void refreshPush(); }, 0);
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   useEffect(() => {
     const {
       data: { subscription },

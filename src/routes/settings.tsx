@@ -1,8 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { PageHeader } from "@/components/mae/Nav";
 import { Button } from "@/components/ui/button";
+import { Bell, BellOff } from "lucide-react";
+import { getMyProfile } from "@/lib/chat/api";
+import { disablePushNotifications, enablePushNotifications, getPushEnabled } from "@/lib/push";
 import { Camera, Mic, Settings, Download, RefreshCw, Smartphone } from "lucide-react";
 
 type NativeTools = {
@@ -26,6 +29,9 @@ function SettingsPage() {
   const [latest, setLatest] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [profileId, setProfileId] = useState<string | null>(null);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
 
   const native = Capacitor.isNativePlatform();
 
@@ -44,6 +50,47 @@ function SettingsPage() {
   }
 
   useEffect(() => { void refresh(); }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!native) return () => { active = false; };
+
+    void getMyProfile().then(async (profile) => {
+      if (!active || !profile) return;
+      setProfileId(profile.id);
+      const enabled = await getPushEnabled(profile.id);
+      if (active) setPushEnabled(enabled);
+    }).catch(() => {
+      if (active) setProfileId(null);
+    });
+
+    return () => { active = false; };
+  }, [native]);
+
+  async function togglePush() {
+    if (!profileId) {
+      setMessage("برای فعال‌کردن اعلان‌ها، اول وارد گفتگوی خودت شو.");
+      return;
+    }
+
+    setPushBusy(true);
+    setMessage("");
+    try {
+      if (pushEnabled) {
+        await disablePushNotifications(profileId);
+        setPushEnabled(false);
+        setMessage("اعلان‌های این دستگاه خاموش شد.");
+      } else {
+        await enablePushNotifications(profileId);
+        setPushEnabled(true);
+        setMessage("اعلان پیام‌های جدید فعال شد. 🔔");
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "تنظیم اعلان‌ها ناموفق بود.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function requestPermissions() {
     setBusy(true);
@@ -128,6 +175,32 @@ function SettingsPage() {
         <Button variant="outline" className="mt-2 w-full" disabled={!native} onClick={() => void Native.openAppSettings()}>
           <Settings className="mr-2 size-4" /> تنظیمات مجوزهای اندروید
         </Button>
+      </section>
+
+
+      <section className="glass mb-4 rounded-3xl p-4">
+        <div className="mb-3 flex items-center gap-3">
+          {pushEnabled ? <Bell className="size-5 text-primary" /> : <BellOff className="size-5 text-muted-foreground" />}
+          <div className="min-w-0 flex-1">
+            <h2 className="font-bold">اعلان پیام‌های جدید</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {pushEnabled ? "اعلان این دستگاه روشن است." : "وقتی پیام جدیدی برسد، باخبر می‌شوی."}
+            </p>
+          </div>
+          <span className={pushEnabled ? "text-xs text-primary" : "text-xs text-muted-foreground"}>
+            {pushEnabled ? "روشن" : "خاموش"}
+          </span>
+        </div>
+        {profileId ? (
+          <Button className="w-full" variant={pushEnabled ? "outline" : "default"} disabled={!native || pushBusy} onClick={() => void togglePush()}>
+            {pushBusy ? "در حال ثبت…" : pushEnabled ? "خاموش‌کردن اعلان‌ها" : "فعال‌کردن اعلان‌ها"}
+          </Button>
+        ) : (
+          <Button asChild variant="outline" className="w-full">
+            <Link to="/login">ورود به گفتگو برای فعال‌سازی</Link>
+          </Button>
+        )}
+        {!native && <p className="mt-2 text-xs text-muted-foreground">این قابلیت در نسخه اندروید فعال می‌شود.</p>}
       </section>
 
       <section className="glass rounded-3xl p-4">
