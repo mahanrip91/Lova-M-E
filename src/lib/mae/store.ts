@@ -81,7 +81,7 @@ export const defaultSettings = (): Settings => ({
 });
 
 const HOUR = 3600000;
-const PRESETS_VERSION = 1;
+const PRESETS_VERSION = 2;
 /** User-confirmed dates (birthdays: Mahan 10 Mehr, Elisa 8 Tir; Elisa's greeting 1405/07/10 00:33). */
 export function presetEvents(): MemoryEvent[] {
   const bdM = jalaliToUtc(1405, 7, 10),
@@ -107,7 +107,7 @@ export function presetEvents(): MemoryEvent[] {
     {
       id: "elisa-greets",
       kind: "elisa-greets",
-      title: "الیسا تولد ماهان را تبریک گفت",
+      title: "الیسا تولد ماهان را جشن گرفت",
       from: greet - 10 * 60000,
       to: greet + 3 * HOUR,
       origin: "preset",
@@ -130,15 +130,27 @@ export function applyPresets(
 ): { events: MemoryEvent[]; settings: Settings; changed: boolean } {
   let changed = false;
   let st = settings;
+  const migratedEvents = events.map((event) => {
+    if (
+      event.kind === "elisa-greets" &&
+      event.origin === "preset" &&
+      event.title === "الیسا تولد ماهان را تبریک گفت"
+    ) {
+      changed = true;
+      return { ...event, title: "الیسا تولد ماهان را جشن گرفت" };
+    }
+    return event;
+  });
   if (st.startMs === OLD_DEFAULT_START) {
     st = { ...st, startMs: DEFAULT_START };
     changed = true;
   }
-  if ((st.presetsApplied ?? 0) >= PRESETS_VERSION) return { events, settings: st, changed };
-  const have = new Set(events.map((e) => e.kind));
+  if ((st.presetsApplied ?? 0) >= PRESETS_VERSION)
+    return { events: migratedEvents, settings: st, changed };
+  const have = new Set(migratedEvents.map((e) => e.kind));
   const add = presetEvents().filter((p) => !have.has(p.kind));
   return {
-    events: [...events, ...add],
+    events: [...migratedEvents, ...add],
     settings: { ...st, presetsApplied: PRESETS_VERSION },
     changed: true,
   };

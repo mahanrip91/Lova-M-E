@@ -168,7 +168,11 @@ function SearchPage() {
       <ul className="mt-4 space-y-2">
         {results.map((message) => (
           <li key={message.u}>
-            <Link to="/timeline" search={{ u: message.u }} className="glass block rounded-2xl p-3">
+            <Link
+              to="/chat"
+              search={{ u: message.u, at: message.t }}
+              className="glass block rounded-2xl p-3"
+            >
               <div className="flex justify-between gap-3 text-[11px] text-muted-foreground">
                 <span className={sides[message.k]?.side === "M" ? "text-mahan" : "text-elisa"}>
                   {sides[message.k]?.side === "M" ? "ماهان" : "الیسا"}

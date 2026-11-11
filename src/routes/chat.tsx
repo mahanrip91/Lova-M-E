@@ -19,10 +19,12 @@ import {
   type MessageReceipt,
   editLiveMessage,
   deleteLiveMessage,
+  getLiveMessageById,
 } from "@/lib/chat/api";
 import type { Profile } from "@/lib/chat/types";
 import {
   syncRemoteArchiveAfterLogin,
+  ensureArchiveRange,
   loadOlderArchiveMessages,
   hasOlderArchiveMessages,
   useStore,
@@ -36,6 +38,10 @@ import { dayKey, fmtDate } from "@/lib/mae/time";
 import { Composer } from "@/components/mae/Composer";
 
 export const Route = createFileRoute("/chat")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    u: typeof s["u"] === "string" ? s["u"] : "",
+    at: Number(s["at"]) || 0,
+  }),
   ssr: false,
   head: () => ({
     meta: [
@@ -54,6 +60,7 @@ export const Route = createFileRoute("/chat")({
 });
 
 function Chat() {
+  const { u: targetUid, at: targetAt } = Route.useSearch();
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -75,6 +82,7 @@ function Chat() {
   const [receiptByMessageId, setReceiptByMessageId] = useState<Record<string, MessageReceipt>>({});
   const loadingOlderRef = useRef(false);
   const initialScrollDone = useRef(false);
+  const targetLoadRef = useRef("");
 
   const scrollRef = useRef<HTMLElement | null>(null);
   const activeProfile = useRef<Profile | null>(null);
@@ -239,7 +247,49 @@ function Chat() {
   }, [attempt, router]);
 
   useEffect(() => {
-    if (!messages.length || loading || initialScrollDone.current) return;
+    if (!targetUid || loading || !profile) return;
+
+    const targetIndex = messages.findIndex((message) => message.u === targetUid);
+
+    if (targetIndex >= 0) {
+      const frame1 = window.requestAnimationFrame(() => {
+        virtualizer.scrollToIndex(targetIndex, { align: "center" });
+        window.requestAnimationFrame(() => {
+          virtualizer.scrollToIndex(targetIndex, { align: "center" });
+        });
+      });
+
+      return () => window.cancelAnimationFrame(frame1);
+    }
+
+    if (targetLoadRef.current === targetUid) return;
+    targetLoadRef.current = targetUid;
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        if (targetUid.startsWith("archive:")) {
+          if (!targetAt) throw new Error("زمان پیام جست‌وجوشده مشخص نیست.");
+          await ensureArchiveRange(targetAt, targetAt);
+        } else if (targetUid.startsWith("live:")) {
+          const row = await getLiveMessageById(targetUid.slice(5));
+          if (!cancelled) await upsertLiveChatMessages([row], profile);
+        } else {
+          throw new Error("شناسهٔ پیام جست‌وجوشده معتبر نیست.");
+        }
+      } catch (err) {
+        if (!cancelled) setError(chatError(err));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [targetUid, targetAt, loading, profile, messages, virtualizer]);
+
+  useEffect(() => {
+    if (!messages.length || loading || targetUid || initialScrollDone.current) return;
     initialScrollDone.current = true;
 
     const element = scrollRef.current;
@@ -263,7 +313,7 @@ function Chat() {
       window.cancelAnimationFrame(frame1);
       cleanupFrame2();
     };
-  }, [messages.length, loading, virtualizer]);
+  }, [messages.length, loading, targetUid, virtualizer]);
 
   async function loadOlder() {
     const element = scrollRef.current;

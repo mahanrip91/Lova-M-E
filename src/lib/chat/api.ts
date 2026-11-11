@@ -137,6 +137,17 @@ export async function listMessages(_profile: Profile): Promise<ChatMessage[]> {
   }
 }
 
+export async function getLiveMessageById(id: string): Promise<ChatMessage> {
+  const { data, error } = await supabase
+    .from("messages")
+    .select(messageColumns)
+    .eq("id", id)
+    .single();
+
+  if (error) throw error;
+  return data as ChatMessage;
+}
+
 export async function sendTextMessage(body: string, senderId: string): Promise<ChatMessage> {
   const text = body.trim();
   if (!text) throw new Error("EMPTY_MESSAGE");

@@ -159,7 +159,7 @@ function RootComponent() {
   const viewer = useViewer();
   const theme = useTheme();
   useEffect(() => {
-    setViewer(ctxViewer);
+    if (ctxViewer) setViewer(ctxViewer);
   }, [ctxViewer]);
   useEffect(() => {
     applyTheme(viewer, theme);
