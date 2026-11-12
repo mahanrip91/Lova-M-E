@@ -1,7 +1,11 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/timeline")({
-  beforeLoad: () => {
-    throw redirect({ to: "/chat", search: { u: "", at: 0 } });
+  validateSearch: (s: Record<string, unknown>) => ({
+    u: typeof s["u"] === "string" ? s["u"] : "",
+    at: Number(s["at"]) || 0,
+  }),
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/chat", search: { u: search.u, at: search.at } });
   },
 });

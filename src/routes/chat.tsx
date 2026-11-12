@@ -8,7 +8,6 @@ import {
   CalendarClock,
   LoaderCircle,
   LogOut,
-  MessageCircle,
   Trash2,
   X,
   Pin,
@@ -86,7 +85,11 @@ function Chat() {
   const allMessages = useStore((s) => s.messages);
   const [visibleArchiveUids, setVisibleArchiveUids] = useState<Set<string>>(() => new Set());
   const messages = useMemo(
-    () => allMessages.filter((message) => message.s === "LIVE" || visibleArchiveUids.has(message.u) || message.u === targetUid),
+    () =>
+      allMessages.filter(
+        (message) =>
+          message.s === "LIVE" || visibleArchiveUids.has(message.u) || message.u === targetUid,
+      ),
     [allMessages, visibleArchiveUids, targetUid],
   );
   const sources = useStore((s) => s.sources);
@@ -103,6 +106,8 @@ function Chat() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [showJumpLatest, setShowJumpLatest] = useState(false);
   const [jumpAt, setJumpAt] = useState("");
+  const [showJumpPicker, setShowJumpPicker] = useState(false);
+  const [showConnectionBanner, setShowConnectionBanner] = useState(true);
   const [pinnedUid, setPinnedUid] = useState<string | null>(null);
   const [peerOnline, setPeerOnline] = useState(false);
   const [peerLastSeen, setPeerLastSeen] = useState<string | null>(null);
@@ -116,6 +121,13 @@ function Chat() {
 
   const scrollRef = useRef<HTMLElement | null>(null);
   const activeProfile = useRef<Profile | null>(null);
+
+  useEffect(() => {
+    setShowConnectionBanner(true);
+    if (connection === "CONNECTING") return;
+    const timer = window.setTimeout(() => setShowConnectionBanner(false), 1700);
+    return () => window.clearTimeout(timer);
+  }, [connection]);
 
   const virtualizer = useVirtualizer({
     count: messages.length,
@@ -198,7 +210,13 @@ function Chat() {
         } catch (syncError) {
           console.warn("M AND E archive sync failed:", syncError);
           if (active) {
-            setVisibleArchiveUids(new Set(getState().messages.filter((message) => message.s !== "LIVE").map((message) => message.u)));
+            setVisibleArchiveUids(
+              new Set(
+                getState()
+                  .messages.filter((message) => message.s !== "LIVE")
+                  .map((message) => message.u),
+              ),
+            );
           }
         }
 
@@ -324,7 +342,47 @@ function Chat() {
   }
 
   useEffect(() => {
-    if (!targetUid || loading || !profile) return;
+    if (loading || !profile) return;
+
+    if (!targetUid && targetAt > 0) {
+      const timeKey = `time:${targetAt}`;
+      if (targetLoadRef.current === timeKey) return;
+      targetLoadRef.current = timeKey;
+      let cancelled = false;
+      void (async () => {
+        try {
+          const from = targetAt - 60 * 60 * 1000;
+          const to = targetAt + 60 * 60 * 1000;
+          await ensureArchiveRange(from, to);
+          if (cancelled) return;
+          const candidates = getState().messages.filter(
+            (message) => message.t >= from && message.t <= to,
+          );
+          if (!candidates.length) {
+            setError("در اطراف این زمان پیامی پیدا نشد.");
+            return;
+          }
+          const nearest = candidates.reduce((best, message) =>
+            Math.abs(message.t - targetAt) < Math.abs(best.t - targetAt) ? message : best,
+          );
+          setVisibleArchiveUids(
+            (current) =>
+              new Set([
+                ...current,
+                ...candidates.filter((message) => message.s !== "LIVE").map((message) => message.u),
+              ]),
+          );
+          await navigate({ to: "/chat", search: { u: nearest.u, at: nearest.t }, replace: true });
+        } catch (err) {
+          if (!cancelled) setError(chatError(err));
+        }
+      })();
+      return () => {
+        cancelled = true;
+        if (targetLoadRef.current === timeKey) targetLoadRef.current = "";
+      };
+    }
+    if (!targetUid) return;
 
     const targetIndex = messages.findIndex((message) => message.u === targetUid);
 
@@ -338,7 +396,8 @@ function Chat() {
           if (container && target) {
             const containerRect = container.getBoundingClientRect();
             const targetRect = target.getBoundingClientRect();
-            container.scrollTop += targetRect.top - containerRect.top - (container.clientHeight - targetRect.height) / 2;
+            container.scrollTop +=
+              targetRect.top - containerRect.top - (container.clientHeight - targetRect.height) / 2;
           }
         });
       });
@@ -358,8 +417,10 @@ function Chat() {
           const rangeTo = targetAt + 30 * 60 * 1000;
           await ensureArchiveRange(rangeFrom, rangeTo);
           if (!cancelled) {
-            const contextUids = getState().messages
-              .filter((message) => message.t >= rangeFrom && message.t <= rangeTo && message.s !== "LIVE")
+            const contextUids = getState()
+              .messages.filter(
+                (message) => message.t >= rangeFrom && message.t <= rangeTo && message.s !== "LIVE",
+              )
               .map((message) => message.u);
             setVisibleArchiveUids((current) => new Set([...current, ...contextUids]));
           }
@@ -376,6 +437,7 @@ function Chat() {
 
     return () => {
       cancelled = true;
+      if (targetLoadRef.current === targetUid) targetLoadRef.current = "";
     };
   }, [targetUid, targetAt, loading, profile, messages, virtualizer]);
 
@@ -433,7 +495,8 @@ function Chat() {
       element.scrollTop > 220 ||
       loadingOlderRef.current ||
       !hasOlderArchiveMessages()
-    ) return;
+    )
+      return;
 
     loadingOlderRef.current = true;
     setLoadingOlder(true);
@@ -501,14 +564,22 @@ function Chat() {
       const from = target - 60 * 60 * 1000;
       const to = target + 60 * 60 * 1000;
       await ensureArchiveRange(from, to);
-      const candidates = getState().messages.filter((message) => message.t >= from && message.t <= to);
+      const candidates = getState().messages.filter(
+        (message) => message.t >= from && message.t <= to,
+      );
       if (!candidates.length) {
         setError("در اطراف این زمان پیامی پیدا نشد.");
         return;
       }
-      setVisibleArchiveUids((current) => new Set([...current, ...candidates.filter((message) => message.s !== "LIVE").map((message) => message.u)]));
+      setVisibleArchiveUids(
+        (current) =>
+          new Set([
+            ...current,
+            ...candidates.filter((message) => message.s !== "LIVE").map((message) => message.u),
+          ]),
+      );
       const nearest = candidates.reduce((best, message) =>
-        Math.abs(message.t - target) < Math.abs(best.t - target) ? message : best
+        Math.abs(message.t - target) < Math.abs(best.t - target) ? message : best,
       );
       await navigate({ to: "/chat", search: { u: nearest.u, at: nearest.t } });
     } catch (err) {
@@ -556,6 +627,7 @@ function Chat() {
   }
 
   async function logout() {
+    if (!window.confirm("از حساب گفتگو خارج می‌شی؟")) return;
     setLeaving(true);
     setError("");
     try {
@@ -573,62 +645,149 @@ function Chat() {
 
   return (
     <main className="mx-auto flex h-dvh max-w-3xl flex-col">
-      <header className="glass flex shrink-0 items-center justify-between gap-3 px-4 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <MessageCircle className="size-7 shrink-0 text-primary" />
-          <div className="min-w-0">
-            <h1 className="truncate font-display text-2xl">چت</h1>
-            <p className="text-xs text-muted-foreground">
-              {profile ? `${profile.side} · ` : ""}
-              {connection === "SUBSCRIBED"
-                ? "متصل"
+      <header className="relative z-30 shrink-0 border-b border-border/70 bg-background/85 px-3 py-2 backdrop-blur-xl">
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className={`size-2.5 shrink-0 rounded-full ring-4 ${
+              connection === "SUBSCRIBED"
+                ? "bg-emerald-500 ring-emerald-500/15"
                 : connection === "CONNECTING"
-                  ? "در حال اتصال…"
-                  : "اتصال زنده قطع است"}
-              {" · "}
-              {peerOnline
-                ? "طرف مقابل آنلاین"
-                : peerLastSeen
-                  ? `آخرین بازدید ${new Date(peerLastSeen).toLocaleDateString("fa-IR", {
-                      month: "numeric",
-                      day: "numeric",
-                      timeZone: "Asia/Tehran",
-                    })} · ${new Date(peerLastSeen).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Tehran" })}`
-                  : "وضعیت نامشخص"}
-              {" · "}
-              {sources.reduce((total, source) => total + source.count, 0).toLocaleString("fa-IR")} پیام
-            </p>
+                  ? "bg-amber-400 ring-amber-400/15"
+                  : "bg-red-500 ring-red-500/15"
+            }`}
+            title={
+              connection === "SUBSCRIBED"
+                ? "اتصال شما برقرار است"
+                : connection === "CONNECTING"
+                  ? "در حال اتصال"
+                  : "اتصال قطع است"
+            }
+          />
+          <div className="min-w-0 flex-1 truncate text-xs">
+            <span className="font-bold text-foreground">چت</span>
+            <span className="mx-1.5 text-muted-foreground">·</span>
+            <span className={peerOnline ? "text-emerald-500" : "text-muted-foreground"}>
+              {peerOnline ? "طرف مقابل آنلاین" : "طرف مقابل آفلاین"}
+            </span>
+            {!peerOnline && peerLastSeen && (
+              <span className="text-muted-foreground">
+                {" · آخرین بازدید "}
+                {new Date(peerLastSeen).toLocaleDateString("fa-IR", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  timeZone: "Asia/Tehran",
+                })}{" "}
+                {new Date(peerLastSeen).toLocaleTimeString("fa-IR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                  timeZone: "Asia/Tehran",
+                })}
+              </span>
+            )}
+            <span className="mx-1.5 text-muted-foreground">·</span>
+            <span className="text-muted-foreground">
+              {sources.reduce((total, source) => total + source.count, 0).toLocaleString("fa-IR")}{" "}
+              پیام
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="size-9"
+              title="برگشت"
+              aria-label="برگشت"
+            >
+              <Link to="/">
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+            <div className="relative">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-9"
+                title="رفتن به زمان"
+                aria-label="رفتن به زمان"
+                aria-expanded={showJumpPicker}
+                onClick={() => setShowJumpPicker((v) => !v)}
+              >
+                <CalendarClock className="size-4" />
+              </Button>
+              {showJumpPicker && (
+                <div className="absolute left-0 top-11 z-50 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-love/25 bg-background p-3 shadow-2xl">
+                  <p className="mb-2 text-xs font-bold">رفتن به تاریخ و ساعت</p>
+                  <input
+                    type="datetime-local"
+                    value={jumpAt}
+                    onChange={(event) => setJumpAt(event.target.value)}
+                    aria-label="انتخاب تاریخ و ساعت"
+                    className="h-11 w-full rounded-xl border border-love/25 bg-muted/50 px-2 text-xs text-foreground outline-none focus:border-love focus:ring-2 focus:ring-love/20"
+                  />
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="flex-1 rounded-xl"
+                      onClick={() => {
+                        if (!jumpAt) return;
+                        void jumpToSelectedTime().then(() => setShowJumpPicker(false));
+                      }}
+                    >
+                      برو به زمان
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-xl"
+                      onClick={() => setShowJumpPicker(false)}
+                    >
+                      بستن
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <Button
+              onClick={logout}
+              disabled={leaving}
+              variant="ghost"
+              size="icon"
+              className="size-9"
+              title="خروج از حساب"
+              aria-label="خروج از حساب"
+            >
+              <LogOut className="size-4" />
+            </Button>
           </div>
         </div>
-
-        <div className="flex shrink-0 items-center gap-1">
-          <input
-            type="datetime-local"
-            value={jumpAt}
-            onChange={(event) => setJumpAt(event.target.value)}
-            aria-label="انتخاب تاریخ و ساعت برای رفتن به پیام"
-            title="انتخاب زمان"
-            className="h-9 w-[9.5rem] rounded-xl border border-border bg-background/70 px-2 text-[10px] text-foreground"
-          />
-          <Button type="button" variant="ghost" size="icon" title="رفتن به زمان انتخاب‌شده" aria-label="رفتن به زمان انتخاب‌شده" onClick={() => void jumpToSelectedTime()}>
-            <CalendarClock className="size-4" />
-          </Button>
-          <Button asChild variant="ghost" size="icon" title="خانه" aria-label="خانه">
-            <Link to="/">
-              <ArrowRight />
-            </Link>
-          </Button>
-          <Button
-            onClick={logout}
-            disabled={leaving}
-            variant="ghost"
-            size="icon"
-            title="خروج از حساب"
-            aria-label="خروج از حساب"
+        {showConnectionBanner && (
+          <div
+            className={`mt-2 h-7 overflow-hidden rounded-lg px-3 text-[11px] leading-7 transition-all duration-300 ${
+              connection === "SUBSCRIBED"
+                ? "bg-emerald-500/10 text-emerald-500"
+                : connection === "CONNECTING"
+                  ? "bg-amber-400/10 text-amber-500"
+                  : "bg-red-500/10 text-red-500"
+            }`}
           >
-            <LogOut />
-          </Button>
-        </div>
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className={`size-1.5 rounded-full ${connection === "SUBSCRIBED" ? "bg-emerald-500" : connection === "CONNECTING" ? "bg-amber-400 animate-pulse" : "bg-red-500"}`}
+              />
+              {connection === "SUBSCRIBED"
+                ? "متصل شد"
+                : connection === "CONNECTING"
+                  ? "درحال اتصال…"
+                  : "اتصال برقرار نیست"}
+            </span>
+          </div>
+        )}
       </header>
 
       {pinnedUid && (
@@ -648,8 +807,10 @@ function Chat() {
             onClick={() => {
               const index = messages.findIndex((message) => message.u === pinnedUid);
               const pinned = allMessages.find((message) => message.u === pinnedUid);
-              if (index >= 0) virtualizer.scrollToIndex(index, { align: "center", behavior: "smooth" });
-              else if (pinned) void navigate({ to: "/chat", search: { u: pinned.u, at: pinned.t } });
+              if (index >= 0)
+                virtualizer.scrollToIndex(index, { align: "center", behavior: "smooth" });
+              else if (pinned)
+                void navigate({ to: "/chat", search: { u: pinned.u, at: pinned.t } });
               else setError("این پیام در آرشیو پیدا نشد.");
             }}
           >
