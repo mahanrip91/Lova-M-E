@@ -1,23 +1,23 @@
 {
-  "versionCode": 9,
-  "versionName": "1.1.7",
-  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.7-9/M-AND-E.apk",
-  "apkSizeBytes": 8629388,
-  "apkSha256": "3821092b9ab77adbb8bff0331b3895c081b5da5f784fae28f60630bf61aeac3f",
+  "versionCode": 10,
+  "versionName": "1.1.8",
+  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.8-10/M-AND-E.apk",
+  "apkSizeBytes": 8624223,
+  "apkSha256": "d8e768e330808bc6c97ada5008f9702e2fd949df38cf372ff4c07dab0f4669c1",
   "releaseNotes": [
-    "آرشیو کامل Assassin’s Creed روی Supabase؛ ۲۹۰ پیام گروه با فرستنده‌ها، ربات‌ها، رویدادها و فرادادهٔ پیوست‌ها. بازپخش «روز اول ما» و «چطور شروع شد» با تنظیمات و خاطره‌های همگام‌شده بین دستگاه‌ها."
+    "اصلاح پرش به پیام انتخاب‌شده، یکپارچه‌سازی خاطره‌های روز اول و چطور شروع شد از چت خصوصی تا پایان گفتگوی گروه، شمارش کل پیام‌ها، نمایش تاریخ و ساعت آخرین بازدید و حذف ویرایش تاریخ‌ها."
   ],
   "updateType": "apk",
   "delta": {
     "algorithm": "bsdiff40",
-    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.7-9/M-AND-E-v1.1.7-9.bsdiff",
-    "fromVersionCode": 8,
-    "fromApkSha256": "eb52d3e6a78f02ae265e3f6c4180d0ec38ba21d8e4bfa6dfe17f396546e1c6d7",
-    "patchSizeBytes": 356296,
-    "patchSha256": "82e0761ab0cae494e45fea1dbd50009556aa57e39d9e55312c3cf09eec20aae3",
-    "targetApkSizeBytes": 8629388,
-    "targetApkSha256": "3821092b9ab77adbb8bff0331b3895c081b5da5f784fae28f60630bf61aeac3f"
+    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.8-10/M-AND-E-v1.1.8-10.bsdiff",
+    "fromVersionCode": 9,
+    "fromApkSha256": "3821092b9ab77adbb8bff0331b3895c081b5da5f784fae28f60630bf61aeac3f",
+    "patchSizeBytes": 361753,
+    "patchSha256": "a7e9a404298349734456ac9f6243df88ea56c3f71de6d565b935c0de12d3fb07",
+    "targetApkSizeBytes": 8624223,
+    "targetApkSha256": "d8e768e330808bc6c97ada5008f9702e2fd949df38cf372ff4c07dab0f4669c1"
   },
   "minimumSupportedVersionCode": null,
-  "publishedAt": "2026-11-12T18:15:58.165Z"
+  "publishedAt": "2026-11-12T19:03:11.591Z"
 }
