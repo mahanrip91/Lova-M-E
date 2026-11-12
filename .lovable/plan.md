@@ -1,175 +1,100 @@
-# M AND E — File inspection report and build plan
+# OTA web-bundle updater for M AND E (Android, Capacitor 8)
 
-## Part A — Verified findings (all three files opened and parsed in full, read-only)
+## Recommendation
+Option B: a small self-hosted updater using Capacitor's built-in `Bridge.setServerBasePath()`, with signed per-file manifests hosted on GitHub Releases. It needs no paid service, adds no third-party plugin, fits the Termux flow (only Node scripts are needed for web releases), and keeps the existing APK updater as the fallback for native changes.
 
-| # | File | Format | Size | Source app (inferred) | Messages | Range (UTC) |
-|---|------|--------|------|------|------|------|
-| 1 | `3_ִ𖹭𑪊ִ_᷼ᤢ.json` | JSON object | ~7.95 MB | Rubika (field names match Rubika API) | 20,534 (matches `message_count`, `complete: true`) | 2026-04-14 23:58 → 2026-08-31 21:50 |
-| 2 | `ℯ𝑙𝑖𝓈𝒶_from_𝓶𝓪𝓱𝓪𝓷.json` | JSON array | ~7.18 MB | Telegram (simplified export) | 33,806 | 2026-07-19 23:16 → 2026-09-26 20:45 |
-| 3 | `𖹭_from_𝓶𝓪𝓱𝓪𝓷.json` | JSON array | ~8.85 MB | Telegram (simplified export) | 41,179 | 2026-08-18 17:06 → 2026-10-29 07:34 |
+## How the WebView loads a downloaded bundle
+- Capacitor Android serves `www/` from the APK's assets through `WebViewLocalServer` at `https://localhost`. Changing `www` on disk has no effect on an installed APK.
+- Capacitor 8 can serve from a folder on the device instead: `bridge.setServerBasePath(absPath)` switches the local server to read from that folder and reloads. The origin stays `https://localhost`, so IndexedDB, localStorage and the Supabase session are unchanged. This is the same mechanism used by Ionic's live updates and by Capgo.
+- At startup, `MainActivity` (in `onCreate`, after `super`) reads `files/ota/current.json`. If it points to a verified, compatible bundle, it calls `setServerBasePath(files/ota/bundles/<id>)`. Otherwise it serves from the APK assets.
+- No separate HTTP server and no remote URL are involved. Code only ever runs from local, verified files.
 
-Total: 95,519 messages. Performance work is essential.
+## Options compared
+| | A: Capgo | B: Custom (recommended) |
+|---|---|---|
+| Delta | Per-file manifest ("delta") downloads | Per-file SHA-256 content-addressed downloads |
+| Signing | Optional end-to-end encryption/signing | Ed25519 manifest signature, public key built into the APK |
+| Hosting | Capgo cloud (paid tiers, bandwidth/MAU limits; self-hosting is possible but complex) | GitHub Releases/raw, free |
+| Rollback | Built in (`notifyAppReady`) | Built ourselves with the same pattern |
+| Effort | Low code, but account, CLI and vendor lock-in | About 600 lines of Java + TS + scripts |
+| Termux | CLI needs Node; works | Node scripts only |
+Capgo pricing and limits change often. Check them before choosing it; this plan does not depend on them.
 
-### 1. Structure and keys
-- **File 1 (Rubika):** top level is `{chat_title, chat_guid, message_count, complete, exported_at, messages[]}`. Each message has `message_id` (string), `time` (string), `type`, `is_edited`, `author_type` (always "User"), `author_object_guid`, `allow_transcription`, and an optional `text`. Optional fields: `reply_to_message_id`, `file_inline`, `forwarded_from`, `forwarded_no_link`, `reactions`, `metadata` (text-format ranges), `sticker`, `rubino_post_data`, `has_link`.
-  Redacted example: `{message_id:"16303…", time:"1776211116", type:"Text", author_object_guid:"u0IX…", text:"<136 chars>", is_edited:false}`
-- **Files 2 and 3 (Telegram):** a flat array of `{id:int, date:string, sender_id:int, sender_name:string, text:string, reply_to:int|null}`. No other fields.
-
-### 2. Counts and duplicates
-- No duplicate IDs in any file.
-- About 12 messages in file 1 and about 125 in each of files 2 and 3 share the same second and the same text. These look like real repeated sends, not export duplicates. Keep them all.
-- Files 2 and 3 have zero messages that match exactly (same time and text), even though their dates overlap. They are separate chats.
-- The Telegram IDs have large gaps (about 66k and 18k). These are likely deleted or service messages, so IDs can't be used to check completeness.
-
-### 3. Timestamps
-- **File 1:** Unix epoch seconds stored as a string, sorted ascending. `exported_at` has no timezone, probably Tehran local time (an assumption).
-- **Files 2 and 3:** ISO 8601 with `+00:00`, at one-second precision, sorted ascending, none missing.
-- No Jalali dates appear in any file. Jalali has to be computed.
-
-### 4. Who sent each message
-- **File 2:** `7001392382` "𝓶𝓪𝓱𝓪𝓷" sent 16,339 messages and `8130263711` "ℯ𝑙𝑖𝓈𝒶" sent 17,467.
-- **File 3:** `7001392382` "𝓶𝓪𝓱𝓪𝓷" sent 20,096 messages and `8816310115` "꣄𐇽̼ᩘْْ.𖹭ִ" sent 21,083.
-- **File 1:** there are two authors: `u0IX…` (9,635 messages) and `u0Efd…` (10,899). `chat_guid` equals `u0Efd…`.
-- **Assumptions:**
-  - The file 3 sender ID is Elisa's second account, because the 𖹭 symbol appears in both her name there and the file 1 title.
-  - In Rubika, `u0Efd…` is Elisa (a private chat's ID is usually the other person's) and `u0IX…` is Mahan.
-- A one-time "confirm sides" screen lets you swap either assignment.
-
-### 5. Message types, media, replies, forwards, edits
-- **File 1:**
-  - Types: Text 20,082, FileInline 333, FileInlineCaption 113, Sticker 5, RubinoPost 1.
-  - Attachments are listed with their details only (Gif 231, Image 179, Video 18, Voice 10, Music 6, zip 2). 428 include a tiny `thumb_inline` preview.
-  - **No actual media files are included.**
-  - Replies: 11,132, and 11,116 can be traced to their original. Forwards: 240. Edited: 203. Reactions: 41. No deletion info.
-- **Files 2 and 3:**
-  - Only `reply_to` exists. File 2: 17,118 of 17,136 replies can be traced. File 3: 20,124 of 20,137.
-  - No type, media, forward or edit info.
-  - Empty-text messages (2,179 and 2,021) are probably media whose details were dropped. They'll show as "Media / non-text message".
-
-### 6. Overlap and merging
-- Three separate conversations: Rubika (Apr to Aug), Telegram A (Jul to Sep) and Telegram B (Aug to Oct), with no duplicated records.
-- About 100 long texts appear in both Telegram files, and about 20 appear in both Rubika and Telegram. These are likely copy-pastes or forwards. Keep them.
-- **Merging:** convert every time to UTC ms and sort by time, then source, then original order. Each message keeps a source label.
-
-### 7. Limitations and privacy
-- No malformed records and no missing timestamps.
-- Times are only accurate to the second, so many messages share the same second. Ties are broken by original file order.
-- Names use decorative Unicode. Show display names you set, with the original as a tooltip.
-- About 30 replies point to messages that aren't in the export. They'll show "Original message not available".
-- **Privacy:** these are intimate conversations. The Rubika `access_hash_rec` and `file_id` fields work like access tokens and are dropped when the file is read. Chat data is never bundled into the app or uploaded anywhere.
-
-## Part B — Core architecture
-
-**Principle:** the app ships with no chat data. On each device, you pick the three files once. Everything is processed in your browser and saved only on that device.
-
-```text
-File picker -> Web Worker (parse + normalize + sessions + search index)
-            -> IndexedDB (messages, days, sessions, events, bookmarks, settings)
-UI (main thread) <- paged queries <- IndexedDB
+## Protocol
+`ota/channel.json` (small, polled), served from `https://github.com/mahanrip91/Lova-M-E/releases/latest/download/ota-channel.json`:
+```json
+{ "schema":1, "bundleId":"web-2026.11.12-1", "manifestUrl":"…/ota-manifest-<id>.json",
+  "minNativeVersionCode":2, "maxNativeVersionCode":null, "publishedAt":"…" }
 ```
+`ota-manifest-<id>.json` + `ota-manifest-<id>.json.sig` (Ed25519 over the exact bytes):
+```json
+{ "schema":1, "bundleId":"…", "minNativeVersionCode":2, "nativeApiLevel":1,
+  "baseUrl":"…/ota-files/", "entry":"index.html", "totalSize":123,
+  "files":[{"path":"assets/app-abc.js","sha256":"…","size":1234}],
+  "releaseNotes":"…" }
+```
+- Files are fetched as `baseUrl + sha256` (content-addressed, hosted as one release asset per hash, or a single release with all blobs). Unchanged hashes are copied or hard-linked from the local blob store `files/ota/blobs/<sha>`, so only changed files download.
+- `nativeApiLevel` is a constant in the Java plugin. It increases when the JS↔native plugin surface changes, and a bundle that needs a higher level is refused and the APK update is offered instead.
 
-**Screens (Persian, right-to-left, neon/cosmic, dark only)**
-- **Import:** detects each source type automatically, shows progress, then asks you to confirm sides.
-- **Unified timeline:** chat bubbles (Mahan in neon cyan, Elisa in neon magenta), a source label (Rubika / Telegram A / Telegram B), sticky Jalali day headers, tap-to-jump replies, and placeholders for media and forwards.
-- **Search:** Persian-aware (treats ي/ی and ك/ک as the same, ignores ZWNJ and diacritics), with filters for source, sender and date.
-- **Bookmarks:** star any message and add a note.
-- **Settings:** display names, sides, re-import, and delete all data from this device.
+## Security
+- Ed25519 public key built into the APK (`UpdateConfig`). The manifest is rejected unless its signature verifies, on Java 15+ / Android 13+ via `Signature.getInstance("Ed25519")` or otherwise via bundled BouncyCastle-lite (a decision before building: see below).
+- Every file is checked for size and SHA-256 after download, and a mismatch deletes it.
+- Path rules: relative paths only, `[A-Za-z0-9._/-]`, no `..`, no leading `/`, no backslash. The canonical path must stay inside the staging dir.
+- Limits: at most 2,000 files, at most 25 MB per file, at most 60 MB total, and free-space check × 2. No zip is used, so there is no zip-bomb risk.
+- HTTPS only, allowlisted hosts (`github.com`, `objects.githubusercontent.com`).
+- The signing private key stays on the user's machine (`.ota-signing-key`, gitignored) and is never committed or put in CI unencrypted.
 
-**Technical:**
-- The existing TanStack Start app, all client-side. No cloud services or server functions touch chat data.
-- Normalized record: `{uid, source, ts (UTC ms), side, senderRaw, text, kind, replyUid?, media?, edited?, forwarded?, reactions?, ord}`.
-- Storage: Dexie with indexes on `ts`, `[source+ts]` and `side`. The worker writes in batches of 2,000.
-- Rendering: `@tanstack/react-virtual` with windows of about 200 messages. Jumping to a time uses a binary search on `ts`.
-- Search: an inverted index built and queried in the worker.
-- Jalali: `Intl.DateTimeFormat('fa-IR-u-ca-persian', {timeZone:'Asia/Tehran'})`, plus a small Jalali-to-Gregorian converter. Persian digits.
-- App install and offline: manifest and icons, plus `vite-plugin-pwa` (generateSW, NetworkFirst for pages). Registration is guarded so it never runs in the preview or inside an iframe.
-- Every page gets its own head metadata.
-- AGENTS.md records the local-first rule, that chat files are never committed, and the normalized schema.
+## Activation and rollback
+```text
+download → staging/<id> → verify all → rename to bundles/<id> (atomic)
+→ current.json = {pending:<id>, lastGood:<old|builtin>, attempts:0} (written to tmp+rename)
+→ apply on next cold start (or "Restart now")
+→ JS calls OtaUpdater.notifyReady() within 15 s of boot
+   ok  → lastGood = id, pending cleared, old bundles pruned (keep 2)
+   no  → next start: attempts++ ; ≥1 failure → revert to lastGood, mark id bad
+```
+- "Reset to built-in version" button in Settings.
+- After an APK update (new versionCode), any OTA bundle with a lower `minNativeVersionCode`/build stamp than the APK is discarded so the newer built-in assets win.
+- Only `files/ota/` is touched. IndexedDB, localStorage, caches and Supabase are never cleared.
 
-## Part C — Memory Journal (animated)
+## Files to change or add
+Native (needs one final APK, v1.2.0 / versionCode 3):
+- `android/.../OtaUpdaterPlugin.java` (new): `check`, `download` (progress events), `apply`, `notifyReady`, `reset`, `getState`.
+- `android/.../OtaStore.java` (new): verify, paths, atomic write, rollback logic.
+- `MainActivity.java`: register plugin, choose base path at startup.
+- `UpdateCheckWorker.java`: also poll `ota-channel.json`, download in the background on Wi-Fi/unmetered only, notify "update ready". The tap opens the existing `app.mande.chat://settings/updates` link.
+- `UpdateConfig.java`: channel URL, public key, `NATIVE_API_LEVEL`.
+- `android/app/build.gradle`: versionCode 3; BouncyCastle only if needed.
 
-### Verified timing facts (Tehran time, UTC+3:30, converted from source UTC and Unix times; no message text read)
-- **The earliest archived message** is 15 Apr 2026, 03:28 (Rubika). It is after midnight, and **14 Apr has no archived messages**. So any pre-midnight part of the first conversation is **missing from the exports**.
-- 15 Apr has only 10 messages: 3 at 03:28 and 7 at 12:17.
-- **Sessions that actually cross midnight in the first week** (a session ends after a gap of 90 minutes or more):
-  - 17 Apr 20:06 → 18 Apr 00:58 (65 messages)
-  - 20 Apr 19:51 → 21 Apr 00:57 (396 messages)
-- **Which night is «روز اول ما» is unconfirmed.** It could be:
-  - the 14 → 15 Apr night, with the pre-midnight part not exported
-  - the 17 → 18 Apr or 20 → 21 Apr night
-  - an earlier conversation that isn't in any export
-- **Birthday words** appear in 86 messages across about 40 days. These are candidates only. Birthdays and celebration days are **unknown**.
+Web:
+- `src/lib/ota-manifest.ts` (new) + `ota-manifest.test.ts`: strict parse, path validation, compatibility decision, and choosing between OTA, APK and none.
+- `src/lib/update-manifest.ts`: unchanged APK parser. Add `nativeRequired` routing only.
+- `src/routes/settings.tsx`: Updates section shows the web bundle id, progress bar, "Restart to apply", "Reset to built-in", and an APK block (kept).
+- `src/routes/__root.tsx`: call `notifyReady()` after the first successful render.
+- `scripts/build-ota.mjs` (new): from `www/`, hash files, write the manifest, sign it with Ed25519 (`node:crypto`), and output `ota-out/` (manifest, sig, channel, blobs named by hash).
+- `scripts/ota-keygen.mjs` (new), `.gitignore` (key, ota-out).
+- `public/update.json`: unchanged.
 
-### Home screen order
-1. **Featured, pinned card «روز اول ما»**, always first and large. It shows a status badge (Verified range / Needs confirmation) and how much of that night each source covers.
-2. **Live counter «چند وقته با همیم؟»**
-3. Memory gallery: «چطور شروع شد», random memory, Mahan's birthday, Elisa's birthday, the day Mahan celebrated Elisa's birthday, the day Elisa congratulated Mahan, and custom memories.
-4. Entry points to the time-travel explorer, timeline, search and bookmarks.
-5. A neutral **«تازه‌ترین پیام‌های آرشیو»** shortcut that only jumps to the end of the timeline. It is not a scene and has no closing language.
-- No scene or wording anywhere suggests an ending.
+## Release workflow (Termux)
+1. `npm run build:app` → `www/`
+2. `node scripts/build-ota.mjs --min-native 3` → `ota-out/`
+3. `gh release create web-<id> ota-out/*` (and update the `latest` channel asset)
+4. Native changes: bump versionCode, build the APK, and publish as today. The APK flow stays the same.
 
-### «روز اول ما»: one conversation across midnight
-- **Model:** one session `{startUid, endUid}` replayed as one continuous stream.
-- **Visual split:** **Segment A, before 00:00** (Jalali date D) and **Segment B, after 00:00** (Jalali date D+1), separated by a glowing midnight divider in the replay and on the scrub bar. Both dates are shown, and it is always labelled as the same conversation.
-- **Detection:** suggest the earliest session overall and the earliest session crossing 00:00 in Tehran time, with spans, counts and source coverage. You confirm, or edit the start and end messages or times.
-- **Coverage display:** a bar for each source over the session window.
-  - If there are no messages before midnight, it says plainly that no archived messages exist before 00:00 for this night.
-  - The missing part is never filled in or recreated.
-- **Day boundaries** are always calculated in Asia/Tehran from UTC ms, never the device timezone. Rubika and Telegram times go through one shared converter.
-- **Tests (synthetic data):**
-  - A session from 23:40 to 00:30 Tehran stays one session with 2 segments.
-  - Midnight falls exactly at UTC 20:30.
-  - Unix and ISO inputs give identical results.
-  - A user-edited range is respected.
-  - A missing pre-midnight part gives a "no coverage" result with no invented messages.
-  - Jalali labels for D and D+1 are correct.
+## Tests
+- TS (vitest): manifest parse/reject (bad schema, traversal, oversize, duplicates), compatibility matrix, delta plan (which hashes to fetch), rollback state machine (pure TS mirror).
+- Script test: build-ota output verifies with the public key, and tampering fails.
+- Java: JUnit for `OtaStore` path checks and the rollback state machine (runs only where Gradle works; may not run on Termux).
+- Manual on device: apply, a bundle that never calls notifyReady (rollback), wrong signature, airplane mode mid-download, APK upgrade over an OTA bundle.
 
-### «چند وقته با همیم؟» live counter
-- **Start:** the confirmed start date and time. It defaults to the confirmed «روز اول ما» start and can be edited (Jalali date and time, Tehran). Until confirmed it shows a "start not confirmed" badge.
-- **End:** the actual current time, read live every second. It never uses the archive's last message date.
-- **Display:**
-  - years / months / days / hours / minutes / seconds on the Jalali calendar in Asia/Tehran, borrowing correctly across month lengths
-  - plus total days
-  - Persian digits, animated digit flips and a soft orbit pulse (static when reduced motion is on)
-- **Label:** «از تاریخ شروعِ تأییدشده تا الان», meaning time since the confirmed start date. It makes no claim about relationship status.
-- **Tests:**
-  - Known start and now pairs give exact components.
-  - Borrowing works at the end of Esfand and in leap years.
-  - The counter ticks forward each second.
-  - The end comes from the injected clock, never the archive.
+## Migration and rollback
+- The first OTA-capable APK (versionCode 3) must still be installed once with the existing APK updater.
+- Kill switch: publish a channel with `bundleId:"builtin"`, which makes devices reset to the APK assets.
+- If OTA is ever removed, a later APK simply ignores `files/ota/`.
 
-### Other memories
-- **«چطور شروع شد»:** the earliest archived messages plus the first sessions of 15–17 Apr. Verified.
-- **Random memory:** picks a real day, session or message (weighted toward days with real activity), shows its intro and replay, and offers «یک خاطره‌ی دیگر». It only uses records that exist.
-- **Four birthday and celebration scenes:** «نیاز به تنظیم» (needs setup) until confirmed.
-  - **Suggestion signals:** birthday keywords and emoji, the sender side, an activity spike, and clustering within 48 hours.
-  - **Confidence:** high (3 or more matches from one side plus a spike), medium or low.
-  - **Review screen:** Confirm / Not this / Another day / Edit range / Enter date manually. Snippets are blurred until tapped.
-  - Nothing is treated as fact until confirmed. Everything stays editable and can be undone.
-
-### Replay (every scene)
-- The intro shows only verified figures: Jalali dates, span, message count, sources, and who wrote first.
-- After the intro, messages replay in time order.
-- **Controls:** play/pause, speed (1×, 2×, 5×, 20×, or compressed gaps capped at 2 seconds), skip to the previous or next session or segment, a scrub bar with the midnight marker, and "open in timeline".
-- The end card says «ادامه در تایم‌لاین» (continue in timeline). There is no closing wording.
-
-### Time-travel explorer (instead of a plain date picker)
-- **Orbit/constellation view:** each month is a ring and each day is a star, with brightness showing message volume and color showing the Mahan/Elisa share. Confirmed memories glow as constellations.
-- **Slider:** Jalali months (فروردین to آبان 1405) with an activity histogram. Zoom levels: year, month, day, hour wheel, minute, then jump into the timeline.
-- Month and year controls, keyboard navigation (arrows, PageUp/PageDown, Enter), and screen-reader labels.
-
-### Performance, accessibility and privacy
-- Day, hour and session counts are calculated once at import, giving about 170 day records. Stars are drawn on one canvas, and animation uses only transform and opacity. Replay and timeline windows hold 200 messages each.
-- Reduced motion (system setting or toggle) switches to fades and a static counter. Contrast is 4.5:1 and focus is visible throughout.
-- Everything stays on the device. No chat contents go to any cloud or AI service, the repository or the published app. Tests use synthetic data only.
-
-### Technical additions
-- **Stores:** `days`, `sessions {start,end,count,crossesMidnight,sources}` and `events {kind, range, confidence, status, manual}`. Settings hold `relationshipStart`.
-- **Pure, tested modules:** `tehranTime`, `sessionize`, `splitAtMidnight`, `elapsedJalali`, `birthdayScore` and `randomMemory`.
-- **Pages:** `/` (home with featured card and counter), `/memories/$sceneId`, `/explore`, `/timeline`, `/search`, `/bookmarks`.
-
-### Key uncertainties and questions
-1. The first archived message is at 03:28 on 15 Apr, with nothing on 14 Apr. Did the first conversation start the evening of 14 Apr, with that part not exported? Or is it 17→18 Apr or 20→21 Apr?
-2. What exact start date and time should the live counter use?
-3. What are Mahan's and Elisa's birthdays, if you'd like to enter them directly?
-4. Should the optional PIN lock be on by default?
+## Tradeoffs and things not promised
+- This is not binary APK delta patching. Native, permission or plugin changes always need a full APK.
+- Changing Vite chunk hashes can make many files "changed". The real saving depends on how much of the build changes; usually a large saving compared with a full APK.
+- An update applies on the next restart, not live mid-session.
+- Ed25519 support: decision needed between requiring API 33+ native crypto or bundling BouncyCastle (adds about 1 MB). The default is to bundle it for older Android.
+- Java has not been compiled in this environment; it must be built locally.
