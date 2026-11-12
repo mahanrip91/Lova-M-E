@@ -44,46 +44,46 @@ const isPosInt = (v: unknown): v is number => typeof v === "number" && Number.is
 export function parseUpdateManifest(raw: unknown): ManifestResult {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: "ساختار فایل نسخه نامعتبر است." };
   const r = raw as Record<string, unknown>;
-  if (!isPosInt(r.versionCode)) return { ok: false, error: "شمارهٔ نسخه (versionCode) نامعتبر است." };
-  if (typeof r.versionName !== "string" || !r.versionName.trim()) return { ok: false, error: "نام نسخه نامعتبر است." };
-  if (typeof r.apkUrl !== "string" || !isAllowedApkUrl(r.apkUrl)) return { ok: false, error: "نشانی فایل نصب مجاز نیست." };
-  const updateType = r.updateType ?? "apk";
+  if (!isPosInt(r["versionCode"])) return { ok: false, error: "شمارهٔ نسخه (versionCode) نامعتبر است." };
+  if (typeof r["versionName"] !== "string" || !r["versionName"].trim()) return { ok: false, error: "نام نسخه نامعتبر است." };
+  if (typeof r["apkUrl"] !== "string" || !isAllowedApkUrl(r["apkUrl"])) return { ok: false, error: "نشانی فایل نصب مجاز نیست." };
+  const updateType = r["updateType"] ?? "apk";
   if (updateType !== "apk") return { ok: false, error: "این نوع به‌روزرسانی پشتیبانی نمی‌شود." };
 
   let apkSizeBytes: number | null = null;
-  if (r.apkSizeBytes != null) {
-    if (!isPosInt(r.apkSizeBytes)) return { ok: false, error: "حجم فایل نامعتبر است." };
-    apkSizeBytes = r.apkSizeBytes;
+  if (r["apkSizeBytes"] != null) {
+    if (!isPosInt(r["apkSizeBytes"])) return { ok: false, error: "حجم فایل نامعتبر است." };
+    apkSizeBytes = r["apkSizeBytes"];
   }
   let apkSha256: string | null = null;
-  if (r.apkSha256 != null) {
-    if (typeof r.apkSha256 !== "string" || !/^[a-f0-9]{64}$/i.test(r.apkSha256))
+  if (r["apkSha256"] != null) {
+    if (typeof r["apkSha256"] !== "string" || !/^[a-f0-9]{64}$/i.test(r["apkSha256"]))
       return { ok: false, error: "چکیدهٔ SHA-256 نامعتبر است." };
-    apkSha256 = r.apkSha256.toLowerCase();
+    apkSha256 = r["apkSha256"].toLowerCase();
   }
   let releaseNotes: string[] = [];
-  if (typeof r.releaseNotes === "string") releaseNotes = [r.releaseNotes];
-  else if (Array.isArray(r.releaseNotes) && r.releaseNotes.every((n) => typeof n === "string")) releaseNotes = r.releaseNotes as string[];
-  else if (r.releaseNotes != null) return { ok: false, error: "یادداشت انتشار نامعتبر است." };
+  if (typeof r["releaseNotes"] === "string") releaseNotes = [r["releaseNotes"]];
+  else if (Array.isArray(r["releaseNotes"]) && r["releaseNotes"].every((n) => typeof n === "string")) releaseNotes = r["releaseNotes"] as string[];
+  else if (r["releaseNotes"] != null) return { ok: false, error: "یادداشت انتشار نامعتبر است." };
   releaseNotes = releaseNotes.map((n) => n.trim()).filter(Boolean);
 
   let minimumSupportedVersionCode: number | null = null;
-  if (r.minimumSupportedVersionCode != null) {
-    if (!isPosInt(r.minimumSupportedVersionCode)) return { ok: false, error: "حداقل نسخهٔ پشتیبانی‌شده نامعتبر است." };
-    minimumSupportedVersionCode = r.minimumSupportedVersionCode;
+  if (r["minimumSupportedVersionCode"] != null) {
+    if (!isPosInt(r["minimumSupportedVersionCode"])) return { ok: false, error: "حداقل نسخهٔ پشتیبانی‌شده نامعتبر است." };
+    minimumSupportedVersionCode = r["minimumSupportedVersionCode"];
   }
   let publishedAt: string | null = null;
-  if (r.publishedAt != null) {
-    if (typeof r.publishedAt !== "string" || Number.isNaN(Date.parse(r.publishedAt)))
+  if (r["publishedAt"] != null) {
+    if (typeof r["publishedAt"] !== "string" || Number.isNaN(Date.parse(r["publishedAt"])))
       return { ok: false, error: "تاریخ انتشار نامعتبر است." };
-    publishedAt = r.publishedAt;
+    publishedAt = r["publishedAt"];
   }
   return {
     ok: true,
     manifest: {
-      versionCode: r.versionCode,
-      versionName: r.versionName.trim(),
-      apkUrl: r.apkUrl,
+      versionCode: r["versionCode"],
+      versionName: r["versionName"].trim(),
+      apkUrl: r["apkUrl"],
       apkSizeBytes,
       apkSha256,
       releaseNotes,

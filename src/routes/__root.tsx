@@ -24,6 +24,8 @@ import { bypassArchiveGate } from "@/lib/chat/routing";
 import { supabase } from "@/lib/supabase";
 import { getMyProfile } from "@/lib/chat/api";
 import { refreshPushRegistration } from "@/lib/push";
+import { App as CapApp } from "@capacitor/app";
+import { isUpdatesDeepLink } from "@/lib/update-manifest";
 
 // Client-side cache of the server gate result so navigation stays instant.
 let gateCache: { unlocked: boolean; viewer: Viewer | null } | null = null;
@@ -169,6 +171,19 @@ function RootComponent() {
   useEffect(() => {
     if (viewer) initStore();
   }, [viewer]);
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let active = true;
+    const open = (url: string | undefined) => {
+      if (active && url && isUpdatesDeepLink(url)) void router.navigate({ to: "/settings", hash: "updates" });
+    };
+    void CapApp.getLaunchUrl().then((r) => open(r?.url)).catch(() => {});
+    const handle = CapApp.addListener("appUrlOpen", (e) => open(e.url));
+    return () => {
+      active = false;
+      void handle.then((h) => h.remove());
+    };
+  }, [router]);
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     let active = true;
