@@ -645,7 +645,7 @@ function Chat() {
 
   return (
     <main className="mx-auto flex h-dvh max-w-3xl flex-col">
-      <header className="relative z-30 shrink-0 border-b border-border/70 bg-background/85 px-3 py-2 backdrop-blur-xl">
+      <header className="relative z-30 shrink-0 border-b border-border/70 bg-background/85 px-3 pb-2 pt-[max(env(safe-area-inset-top),1.5rem)] backdrop-blur-xl">
         <div className="flex min-w-0 items-center gap-2">
           <span
             className={`size-2.5 shrink-0 rounded-full ring-4 ${
@@ -663,34 +663,31 @@ function Chat() {
                   : "اتصال قطع است"
             }
           />
-          <div className="min-w-0 flex-1 truncate text-xs">
-            <span className="font-bold text-foreground">چت</span>
-            <span className="mx-1.5 text-muted-foreground">·</span>
-            <span className={peerOnline ? "text-emerald-500" : "text-muted-foreground"}>
-              {peerOnline ? "طرف مقابل آنلاین" : "طرف مقابل آفلاین"}
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10px] sm:text-xs">
+            <span className="shrink-0 font-bold text-foreground">چت</span>
+            <span className="shrink-0 text-muted-foreground">·</span>
+            <span
+              className={`shrink-0 font-semibold ${peerOnline ? "text-emerald-500" : "text-muted-foreground"}`}
+            >
+              {profile?.side === "M" ? "الیسا" : "ماهان"} {peerOnline ? "آنلاین" : "آفلاین"}
             </span>
             {!peerOnline && peerLastSeen && (
-              <span className="text-muted-foreground">
-                {" · آخرین بازدید "}
-                {new Date(peerLastSeen).toLocaleDateString("fa-IR", {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                  timeZone: "Asia/Tehran",
-                })}{" "}
-                {new Date(peerLastSeen).toLocaleTimeString("fa-IR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: false,
-                  timeZone: "Asia/Tehran",
-                })}
-              </span>
+              <>
+                <span className="shrink-0 text-muted-foreground">·</span>
+                <span className="min-w-0 truncate text-muted-foreground">
+                  آخرین بازدید:{" "}
+                  {new Date(peerLastSeen).toLocaleString("fa-IR", {
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                    timeZone: "Asia/Tehran",
+                  })}
+                </span>
+              </>
             )}
-            <span className="mx-1.5 text-muted-foreground">·</span>
-            <span className="text-muted-foreground">
-              {sources.reduce((total, source) => total + source.count, 0).toLocaleString("fa-IR")}{" "}
-              پیام
-            </span>
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
             <Button
