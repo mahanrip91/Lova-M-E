@@ -1,23 +1,23 @@
 {
-  "versionCode": 12,
-  "versionName": "1.1.10",
-  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.10-12/M-AND-E.apk",
-  "apkSizeBytes": 8623693,
-  "apkSha256": "5f6266d4e087fe0c0aaf93cd606da7be93efc2af8348bac734bc1242693c8954",
+  "versionCode": 13,
+  "versionName": "1.1.11",
+  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.11-13/M-AND-E.apk",
+  "apkSizeBytes": 8623633,
+  "apkSha256": "4afd31633fb870353e1cd1788e9ce373be84d1e8d0212e9af71b426aa7a79f1f",
   "releaseNotes": [
-    "بازطراحی نوار چت و وضعیت اتصال؛ انتخاب زمان با پنجره آیکونی؛ اصلاح پرش دقیق به پیام؛ ورود چت با حساب پیش‌فرض ماهان یا الیسا و فقط رمز عبور."
+    "نمایش نام واقعی طرف مقابل در وضعیت آنلاین/آفلاین؛ نمایش تاریخ و ساعت آخرین بازدید در یک خط؛ پایین‌تر آمدن سربرگ چت برای فاصله از نوار وضعیت گوشی."
   ],
   "updateType": "apk",
   "delta": {
     "algorithm": "bsdiff40",
-    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.10-12/M-AND-E-v1.1.10-12.bsdiff",
-    "fromVersionCode": 11,
-    "fromApkSha256": "3e251251c6a453c4944caf0fc234c3652969b05e6b82ae38f8ac6466fd6ce509",
-    "patchSizeBytes": 367490,
-    "patchSha256": "1167e45de6d96c95dca046ffa9e7f3ca8f61798fe61191ad19e85c40302bcc61",
-    "targetApkSizeBytes": 8623693,
-    "targetApkSha256": "5f6266d4e087fe0c0aaf93cd606da7be93efc2af8348bac734bc1242693c8954"
+    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.11-13/M-AND-E-v1.1.11-13.bsdiff",
+    "fromVersionCode": 12,
+    "fromApkSha256": "5f6266d4e087fe0c0aaf93cd606da7be93efc2af8348bac734bc1242693c8954",
+    "patchSizeBytes": 308225,
+    "patchSha256": "2d254f1af76e5cf8b3ae2d0f89f4aea6e4cd6292effb7ab4170f1b22e1e0f162",
+    "targetApkSizeBytes": 8623633,
+    "targetApkSha256": "4afd31633fb870353e1cd1788e9ce373be84d1e8d0212e9af71b426aa7a79f1f"
   },
   "minimumSupportedVersionCode": null,
-  "publishedAt": "2026-11-12T19:55:21.225Z"
+  "publishedAt": "2026-11-12T20:27:43.192580Z"
 }
