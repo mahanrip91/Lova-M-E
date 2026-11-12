@@ -19,15 +19,30 @@ if (gitStatus.status !== 0 || gitStatus.stdout.trim()) throw new Error("Commit a
 const branch = spawnSync("git", ["branch", "--show-current"], { cwd: root, encoding: "utf8" });
 if (branch.stdout.trim() !== "main") throw new Error("Android releases must be published from main.");
 
-if (!value("apk") && !args.includes("--no-build")) {
+const autoBuild = !value("apk") && !args.includes("--no-build");
+const gradlePath = "android/app/build.gradle";
+let gradle = readFileSync(gradlePath, "utf8");
+let versionCode = Number(gradle.match(/versionCode\s+(\d+)/)?.[1]);
+let versionName = gradle.match(/versionName\s+"([^"]+)"/)?.[1];
+if (!versionCode || !versionName) throw new Error("Could not read Android versionCode/versionName.");
+const previousManifest = JSON.parse(readFileSync("public/update.json", "utf8"));
+if (autoBuild && versionCode <= Number(previousManifest.versionCode || 0)) {
+  const semver = versionName.match(/^(\d+)\.(\d+)\.(\d+)$/);
+  if (!semver) throw new Error("Version name must be MAJOR.MINOR.PATCH to auto-increment.");
+  versionCode = Number(previousManifest.versionCode || versionCode) + 1;
+  versionName = semver[1] + "." + semver[2] + "." + (Number(semver[3]) + 1);
+  gradle = gradle.replace(/versionCode\s+\d+/, "versionCode " + versionCode)
+    .replace(/versionName\s+"[^"]+"/, "versionName \"" + versionName + "\"");
+  writeFileSync(gradlePath, gradle);
+  run("git", ["add", gradlePath]);
+  run("git", ["commit", "-m", "Bump Android version to " + versionName + " (" + versionCode + ")"]);
+  run("git", ["push", "origin", "main"]);
+  console.log("Auto-incremented Android version to " + versionName + " (" + versionCode + ").");
+}
+if (autoBuild) {
   run("npm", ["run", "build:app"]);
   run("bash", ["android/gradlew", "-p", "android", "assembleDebug", "--no-daemon"]);
 }
-
-const gradle = readFileSync("android/app/build.gradle", "utf8");
-const versionCode = Number(gradle.match(/versionCode\s+(\d+)/)?.[1]);
-const versionName = gradle.match(/versionName\s+"([^"]+)"/)?.[1];
-if (!versionCode || !versionName) throw new Error("Could not read Android versionCode/versionName.");
 if (!value("apk") && !args.includes("--no-build")) {
   const webChanges = spawnSync("git", ["status", "--porcelain", "--", "www"], { cwd: root, encoding: "utf8" });
   if (webChanges.stdout.trim()) {
