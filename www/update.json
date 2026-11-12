@@ -1,11 +1,14 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1.0",
-  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/latest/download/M-AND-E.apk",
-  "apkSizeBytes": null,
-  "apkSha256": null,
-  "releaseNotes": ["نسخهٔ فعلی برنامه"],
+  "versionCode": 3,
+  "versionName": "1.1.1",
+  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.1-3/M-AND-E.apk",
+  "apkSizeBytes": 8641813,
+  "apkSha256": "afeff06cb16ae2ac0b78bb47249bda90fe6f8721c6e6d29c12f34e9b67bd0016",
+  "releaseNotes": [
+    "به‌روزرسانی هوشمند؛ نصب امن با پچ کم‌حجم و بازگشت خودکار به APK کامل؛ یکپارچه‌سازی رابط به‌روزرسانی."
+  ],
   "updateType": "apk",
+  "delta": null,
   "minimumSupportedVersionCode": null,
-  "publishedAt": null
+  "publishedAt": "2026-11-12T13:49:19.028Z"
 }
