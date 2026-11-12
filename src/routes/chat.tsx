@@ -53,6 +53,7 @@ import {
 import { setViewer } from "@/lib/mae/viewer";
 import { dayKey, fmtDate } from "@/lib/mae/time";
 import { Composer } from "@/components/mae/Composer";
+import { JalaliDateTimePicker } from "@/components/mae/JalaliDateTimePicker";
 
 export const Route = createFileRoute("/chat")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -105,7 +106,7 @@ function Chat() {
   const [attempt, setAttempt] = useState(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [showJumpLatest, setShowJumpLatest] = useState(false);
-  const [jumpAt, setJumpAt] = useState("");
+  const [jumpAt, setJumpAt] = useState<number | null>(null);
   const [showJumpPicker, setShowJumpPicker] = useState(false);
   const [showConnectionBanner, setShowConnectionBanner] = useState(true);
   const [pinnedUid, setPinnedUid] = useState<string | null>(null);
@@ -389,21 +390,36 @@ function Chat() {
     const targetIndex = messages.findIndex((message) => message.u === targetUid);
 
     if (targetIndex >= 0) {
-      virtualizer.measure();
-      const frame1 = window.requestAnimationFrame(() => {
+      let cancelled = false;
+      let frame = 0;
+      let attempts = 0;
+      const alignTarget = () => {
+        if (cancelled) return;
+        virtualizer.measure();
         virtualizer.scrollToIndex(targetIndex, { align: "center", behavior: "auto" });
-        window.requestAnimationFrame(() => {
+        frame = window.requestAnimationFrame(() => {
+          if (cancelled) return;
           const container = scrollRef.current;
           const target = container?.querySelector<HTMLElement>(`[data-index="${targetIndex}"]`);
           if (container && target) {
             const containerRect = container.getBoundingClientRect();
             const targetRect = target.getBoundingClientRect();
-            container.scrollTop +=
+            const desiredTop =
               targetRect.top - containerRect.top - (container.clientHeight - targetRect.height) / 2;
+            if (Math.abs(desiredTop) > 2) container.scrollTop += desiredTop;
+            target.classList.add("mae-target-arrival");
+            window.setTimeout(() => target.classList.remove("mae-target-arrival"), 1800);
+            return;
           }
+          attempts += 1;
+          if (attempts < 14) alignTarget();
         });
-      });
-      return () => window.cancelAnimationFrame(frame1);
+      };
+      frame = window.requestAnimationFrame(alignTarget);
+      return () => {
+        cancelled = true;
+        window.cancelAnimationFrame(frame);
+      };
     }
 
     if (targetLoadRef.current === targetUid) return;
@@ -444,7 +460,8 @@ function Chat() {
   }, [targetUid, targetAt, loading, profile, messages, virtualizer]);
 
   useEffect(() => {
-    if (!messages.length || loading || targetUid || initialScrollDone.current) return;
+    if (!messages.length || loading || targetUid || targetAt > 0 || initialScrollDone.current)
+      return;
     initialScrollDone.current = true;
 
     const element = scrollRef.current;
@@ -468,7 +485,7 @@ function Chat() {
       window.cancelAnimationFrame(frame1);
       cleanupFrame2();
     };
-  }, [messages.length, loading, targetUid, virtualizer]);
+  }, [messages.length, loading, targetUid, targetAt, virtualizer]);
 
   function jumpToLatest() {
     const element = scrollRef.current;
@@ -539,8 +556,8 @@ function Chat() {
   }
 
   async function jumpToSelectedTime() {
-    if (!jumpAt) return;
-    const target = Date.parse(`${jumpAt}:00+03:30`);
+    if (jumpAt == null) return;
+    const target = jumpAt;
     if (!Number.isFinite(target)) {
       setError("زمان انتخاب‌شده معتبر نیست.");
       return;
@@ -704,12 +721,10 @@ function Chat() {
               {showJumpPicker && (
                 <div className="absolute left-0 top-11 z-50 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-love/25 bg-background p-3 shadow-2xl">
                   <p className="mb-2 text-xs font-bold">رفتن به تاریخ و ساعت</p>
-                  <input
-                    type="datetime-local"
+                  <JalaliDateTimePicker
                     value={jumpAt}
-                    onChange={(event) => setJumpAt(event.target.value)}
-                    aria-label="انتخاب تاریخ و ساعت"
-                    className="h-11 w-full rounded-xl border border-love/25 bg-muted/50 px-2 text-xs text-foreground outline-none focus:border-love focus:ring-2 focus:ring-love/20"
+                    onChange={setJumpAt}
+                    placeholder="انتخاب زمان در تقویم شمسی"
                   />
                   <div className="mt-2 flex gap-2">
                     <Button
@@ -717,7 +732,7 @@ function Chat() {
                       size="sm"
                       className="flex-1 rounded-xl"
                       onClick={() => {
-                        if (!jumpAt) return;
+                        if (jumpAt == null) return;
                         void jumpToSelectedTime().then(() => setShowJumpPicker(false));
                       }}
                     >

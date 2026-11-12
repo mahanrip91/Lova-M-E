@@ -49,6 +49,7 @@ function ThemePage() {
   const [imageY, setImageY] = useState(theme.imageY ?? 50);
   const [imageZoom, setImageZoom] = useState(theme.imageZoom ?? 1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoEditorRef = useRef<HTMLElement>(null);
 
   const storageKey = `mae:custom-themes:${viewer ?? "none"}`;
 
@@ -156,6 +157,10 @@ function ThemePage() {
       const reader = new FileReader();
       reader.onload = () => {
         setDraftImage(String(reader.result));
+        window.setTimeout(
+          () => photoEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }),
+          90,
+        );
         setImageX(theme.imageX ?? 50);
         setImageY(theme.imageY ?? 50);
         setImageZoom(theme.imageZoom ?? 1);
@@ -286,7 +291,10 @@ function ThemePage() {
       <div className="grid gap-3">
         <Row side="mahan" label="رنگ ماهان" />
         <Row side="elisa" label="رنگ الیسا" />
-        <section className="glass overflow-hidden rounded-3xl p-4">
+        <section
+          ref={photoEditorRef}
+          className="glass scroll-mt-24 overflow-hidden rounded-3xl p-4"
+        >
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="font-bold">پس‌زمینهٔ دلخواه</h2>
@@ -333,8 +341,8 @@ function ThemePage() {
                   پیش‌نمایش کادر
                 </span>
               </div>
-              <div className="mt-4 grid gap-3">
-                <label className="block text-xs font-semibold">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-semibold sm:col-span-2">
                   بزرگ‌نمایی · {imageZoom.toFixed(1)}×
                   <input
                     aria-label="بزرگ‌نمایی عکس"
@@ -469,7 +477,7 @@ function ThemePage() {
                   </div>
                 </div>
                 {item.theme.backgroundImage && (
-                  <div className="mt-3 h-20 overflow-hidden rounded-xl border border-white/10">
+                  <div className="mt-3 aspect-[16/6] max-h-28 overflow-hidden rounded-xl border border-white/10">
                     <img
                       src={item.theme.backgroundImage}
                       alt=""
@@ -529,9 +537,17 @@ function ThemePage() {
           .map((r) => (
             <div key={r.id} className="mt-3 rounded-2xl border border-border p-3">
               <p className="text-sm">یک تم جدید برایت فرستاده شده.</p>
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex items-center gap-2">
                 <span className="size-7 rounded-full" style={{ background: r.theme.mahan }} />
                 <span className="size-7 rounded-full" style={{ background: r.theme.elisa }} />
+                {r.theme.backgroundImage && (
+                  <img
+                    src={r.theme.backgroundImage}
+                    alt="پیش‌نمایش عکس تم"
+                    className="ms-auto aspect-[16/6] h-12 rounded-xl border border-white/10 object-cover"
+                    style={{ objectPosition: `${r.theme.imageX ?? 50}% ${r.theme.imageY ?? 50}%` }}
+                  />
+                )}
               </div>
               <div className="mt-3 flex gap-2">
                 <button

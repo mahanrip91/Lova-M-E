@@ -309,7 +309,7 @@ function Replay() {
             این بازه به پایان رسید؛ گفتگو در تایم‌لاین ادامه دارد.
           </p>
           <Link
-            to="/timeline"
+            to="/chat"
             search={{ u: "", at: to }}
             className="mt-4 inline-block rounded-full bg-love px-5 py-2 text-primary-foreground"
           >
@@ -375,7 +375,7 @@ function Replay() {
               {fa(speed)}×
             </button>
             <Link
-              to="/timeline"
+              to="/chat"
               search={{ u: "", at: msgs[Math.max(0, idx - 1)]?.t ?? from }}
               className="rounded-full border border-border px-3 py-1 text-xs"
             >

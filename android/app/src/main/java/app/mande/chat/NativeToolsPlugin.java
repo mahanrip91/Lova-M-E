@@ -1,12 +1,15 @@
 package app.mande.chat;
 
 import android.Manifest;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
+import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.content.pm.PackageInfoCompat;
@@ -89,6 +92,43 @@ public class NativeToolsPlugin extends Plugin {
 
     @PluginMethod
     public void getUpdateNotificationStatus(PluginCall call) { call.resolve(notificationState()); }
+
+    @PluginMethod
+    public void showTestNotification(PluginCall call) {
+        Context ctx = getContext();
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            call.reject("ابتدا اجازهٔ اعلان را فعال کن.", "NOTIFICATION_PERMISSION");
+            return;
+        }
+        NotificationManagerCompat compat = NotificationManagerCompat.from(ctx);
+        if (!compat.areNotificationsEnabled()) {
+            call.reject("اعلان‌های برنامه در تنظیمات اندروید خاموش هستند.", "NOTIFICATIONS_DISABLED");
+            return;
+        }
+        final String channelId = "mae_test";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager manager = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+            NotificationChannel channel = new NotificationChannel(
+                channelId, "اعلان آزمایشی M AND E", NotificationManager.IMPORTANCE_HIGH
+            );
+            channel.setDescription("اعلان آزمایشی برای بررسی درست‌بودن اعلان‌های برنامه");
+            channel.enableVibration(true);
+            manager.createNotificationChannel(channel);
+        }
+        android.app.Notification notification = new NotificationCompat.Builder(ctx, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("M AND E · اعلان آزمایشی")
+            .setContentText("عالی! اعلان‌های برنامه روی این دستگاه نمایش داده می‌شوند. 🔔")
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build();
+        compat.notify(140513, notification);
+        JSObject result = new JSObject();
+        result.put("sent", true);
+        call.resolve(result);
+    }
 
     /** Must only be called from a user action in Settings; the background worker never prompts. */
     @PluginMethod

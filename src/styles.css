@@ -370,3 +370,19 @@ button:disabled {
   color: var(--primary-foreground);
   background: color-mix(in oklch, var(--primary) 55%, transparent);
 }
+
+@keyframes mae-target-arrival {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  35% {
+    box-shadow:
+      0 0 0 2px color-mix(in oklch, var(--love) 65%, transparent),
+      0 0 30px color-mix(in oklch, var(--love) 38%, transparent);
+  }
+}
+.mae-target-arrival {
+  border-radius: 1rem;
+  animation: mae-target-arrival 1.8s ease-out;
+}
