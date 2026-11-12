@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">M AND E</string>
+    <string name="title_activity_main">M AND E</string>
+    <string name="package_name">app.mande.chat</string>
+    <string name="custom_url_scheme">app.mande.chat</string>
+</resources>

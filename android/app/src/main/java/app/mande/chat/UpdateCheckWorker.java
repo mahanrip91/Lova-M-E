@@ -23,6 +23,10 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.Signature;
+import java.security.PublicKey;
+import java.security.spec.X509EncodedKeySpec;
 import org.json.JSONObject;
 
 /** Background manifest check. Never prompts for permissions; silently skips if notifications are off. */
@@ -64,22 +68,36 @@ public class UpdateCheckWorker extends Worker {
     }
 
     private JSONObject fetchManifest() throws Exception {
-        HttpURLConnection conn = (HttpURLConnection) new URL(UpdateConfig.MANIFEST_URL + "?t=" + System.currentTimeMillis()).openConnection();
+        byte[] manifestBytes = fetchSmallFile(UpdateConfig.MANIFEST_URL, 64 * 1024);
+        byte[] signatureBytes = fetchSmallFile(UpdateConfig.MANIFEST_SIGNATURE_URL, 4096);
+        if (manifestBytes == null || signatureBytes == null) return null;
+
+        byte[] keyBytes = android.util.Base64.decode(UpdateConfig.UPDATE_PUBLIC_KEY, android.util.Base64.DEFAULT);
+        PublicKey key = KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(keyBytes));
+        Signature verifier = Signature.getInstance("SHA256withECDSA");
+        verifier.initVerify(key);
+        verifier.update(manifestBytes);
+        String signatureText = new String(signatureBytes, StandardCharsets.UTF_8).trim();
+        if (!verifier.verify(android.util.Base64.decode(signatureText, android.util.Base64.DEFAULT))) return null;
+        return new JSONObject(new String(manifestBytes, StandardCharsets.UTF_8));
+    }
+
+    private byte[] fetchSmallFile(String address, int maxBytes) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(address + "?t=" + System.currentTimeMillis()).openConnection();
         conn.setConnectTimeout(15000);
         conn.setReadTimeout(15000);
         conn.setUseCaches(false);
+        conn.setInstanceFollowRedirects(false);
         try {
             if (conn.getResponseCode() != 200) return null;
             try (InputStream in = conn.getInputStream(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                 byte[] buf = new byte[4096];
                 int n;
-                int total = 0;
                 while ((n = in.read(buf)) != -1) {
-                    total += n;
-                    if (total > 64 * 1024) return null; // manifest must be tiny
+                    if (out.size() + n > maxBytes) return null;
                     out.write(buf, 0, n);
                 }
-                return new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
+                return out.toByteArray();
             }
         } finally {
             conn.disconnect();

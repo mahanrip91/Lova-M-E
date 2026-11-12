@@ -7,6 +7,10 @@ import java.util.Locale;
 final class UpdateConfig {
     static final String MANIFEST_URL =
         "https://raw.githubusercontent.com/mahanrip91/Lova-M-E/main/public/update.json";
+    static final String MANIFEST_SIGNATURE_URL = MANIFEST_URL + ".sig";
+    static final String UPDATE_PUBLIC_KEY =
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAESVeR+iHU6hCpqyngwD9D4wMQVw9m" +
+        "nQxYlundyolIxtcxO+K7slqOzS4zuZlEEwRPQb+fr4eTDqx6ivhFz58uZg==";
     static final String CHANNEL_ID = "app_updates";
     static final int NOTIFICATION_ID = 4105;
     static final String DEEP_LINK = "app.mande.chat://settings/updates";

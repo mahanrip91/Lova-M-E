@@ -20,6 +20,16 @@ export type UpdateManifest = {
   apkSha256: string | null;
   releaseNotes: string[];
   updateType: "apk";
+  delta: {
+    algorithm: "bsdiff40";
+    url: string;
+    fromVersionCode: number;
+    fromApkSha256: string;
+    patchSizeBytes: number;
+    patchSha256: string;
+    targetApkSizeBytes: number;
+    targetApkSha256: string;
+  } | null;
   minimumSupportedVersionCode: number | null;
   publishedAt: string | null;
 };
@@ -40,6 +50,17 @@ export function isAllowedApkUrl(value: string): boolean {
 }
 
 const isPosInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v > 0;
+
+export function isAllowedPatchUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "github.com" && !url.port &&
+      !url.username && !url.password && url.pathname.startsWith("/mahanrip91/Lova-M-E/releases/download/") &&
+      !url.pathname.includes("..") && url.pathname.toLowerCase().endsWith(".bsdiff");
+  } catch {
+    return false;
+  }
+}
 
 export function parseUpdateManifest(raw: unknown): ManifestResult {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: "ساختار فایل نسخه نامعتبر است." };
@@ -67,6 +88,29 @@ export function parseUpdateManifest(raw: unknown): ManifestResult {
   else if (r["releaseNotes"] != null) return { ok: false, error: "یادداشت انتشار نامعتبر است." };
   releaseNotes = releaseNotes.map((n) => n.trim()).filter(Boolean);
 
+  let delta: UpdateManifest["delta"] = null;
+  if (r["delta"] != null) {
+    const d = r["delta"];
+    if (!d || typeof d !== "object" || Array.isArray(d)) return { ok: false, error: "اطلاعات پچ نامعتبر است." };
+    const v = d as Record<string, unknown>;
+    if (v["algorithm"] !== "bsdiff40" || typeof v["url"] !== "string" ||
+        !isAllowedPatchUrl(v["url"]) || !isPosInt(v["fromVersionCode"]) ||
+        typeof v["fromApkSha256"] !== "string" || !/^[a-f0-9]{64}$/i.test(v["fromApkSha256"]) ||
+        !isPosInt(v["patchSizeBytes"]) || typeof v["patchSha256"] !== "string" ||
+        !/^[a-f0-9]{64}$/i.test(v["patchSha256"]) || !isPosInt(v["targetApkSizeBytes"]) ||
+        typeof v["targetApkSha256"] !== "string" || !/^[a-f0-9]{64}$/i.test(v["targetApkSha256"])) {
+      return { ok: false, error: "اطلاعات پچ ناقص یا نامعتبر است." };
+    }
+    if (apkSizeBytes != null && v["targetApkSizeBytes"] !== apkSizeBytes) return { ok: false, error: "حجم هدف پچ با APK یکی نیست." };
+    if (apkSha256 != null && String(v["targetApkSha256"]).toLowerCase() !== apkSha256) return { ok: false, error: "چکیدهٔ هدف پچ با APK یکی نیست." };
+    delta = {
+      algorithm: "bsdiff40", url: v["url"], fromVersionCode: v["fromVersionCode"],
+      fromApkSha256: v["fromApkSha256"].toLowerCase(), patchSizeBytes: v["patchSizeBytes"],
+      patchSha256: v["patchSha256"].toLowerCase(), targetApkSizeBytes: v["targetApkSizeBytes"],
+      targetApkSha256: v["targetApkSha256"].toLowerCase(),
+    };
+  }
+
   let minimumSupportedVersionCode: number | null = null;
   if (r["minimumSupportedVersionCode"] != null) {
     if (!isPosInt(r["minimumSupportedVersionCode"])) return { ok: false, error: "حداقل نسخهٔ پشتیبانی‌شده نامعتبر است." };
@@ -88,6 +132,7 @@ export function parseUpdateManifest(raw: unknown): ManifestResult {
       apkSha256,
       releaseNotes,
       updateType: "apk",
+      delta,
       minimumSupportedVersionCode,
       publishedAt,
     },

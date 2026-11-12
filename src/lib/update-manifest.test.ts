@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAllowedApkUrl, isNewerVersion, isUpdatesDeepLink, parseUpdateManifest } from "./update-manifest";
+import { isAllowedApkUrl, isAllowedPatchUrl, isNewerVersion, isUpdatesDeepLink, parseUpdateManifest } from "./update-manifest";
 import current from "../../public/update.json";
 
 const base = { versionCode: 3, versionName: "1.2.0", apkUrl: "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.2.0/M-AND-E.apk" };
@@ -25,6 +25,23 @@ describe("update manifest", () => {
   it("rejects bad checksum and accepts valid one", () => {
     expect(parseUpdateManifest({ ...base, apkSha256: "abc" }).ok).toBe(false);
     expect(parseUpdateManifest({ ...base, apkSha256: "A".repeat(64) }).ok).toBe(true);
+  });
+  it("validates BSDIFF metadata and only accepts this repository's patch assets", () => {
+    const delta = {
+      algorithm: "bsdiff40",
+      url: "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.2.0/update.bsdiff",
+      fromVersionCode: 2,
+      fromApkSha256: "a".repeat(64),
+      patchSizeBytes: 1200,
+      patchSha256: "b".repeat(64),
+      targetApkSizeBytes: 5000,
+      targetApkSha256: "c".repeat(64),
+    };
+    const r = parseUpdateManifest({ ...base, apkSizeBytes: 5000, apkSha256: "c".repeat(64), delta });
+    expect(r.ok && r.manifest.delta?.fromVersionCode).toBe(2);
+    expect(isAllowedPatchUrl(delta.url)).toBe(true);
+    expect(isAllowedPatchUrl("https://evil.example/update.bsdiff")).toBe(false);
+    expect(parseUpdateManifest({ ...base, delta: { ...delta, patchSha256: "bad" } }).ok).toBe(false);
   });
   it("accepts string release notes", () => {
     const r = parseUpdateManifest({ ...base, releaseNotes: "بهبود پایداری" });

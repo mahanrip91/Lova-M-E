@@ -173,6 +173,35 @@ public class NativeToolsPlugin extends Plugin {
         }
     }
 
+    /** Signed-manifest updater: BSDIFF40 first, verified full APK fallback. */
+    @PluginMethod
+    public void downloadSmartAndInstall(PluginCall call) {
+        if (pendingDownloadCall != null) {
+            call.reject("دانلود دیگری در جریان است.", "BUSY");
+            return;
+        }
+        Context ctx = getContext();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !ctx.getPackageManager().canRequestPackageInstalls()) {
+            Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + ctx.getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(i);
+            call.reject("اجازهٔ نصب از این برنامه را فعال کن و دوباره امتحان کن.", "INSTALL_PERMISSION_REQUIRED");
+            return;
+        }
+
+        call.setKeepAlive(true);
+        pendingDownloadCall = call;
+        new Thread(() -> {
+            try {
+                UpdateInstaller.Result prepared = UpdateInstaller.prepare(ctx);
+                getActivity().runOnUiThread(() -> openInstaller(prepared.apk, true, prepared.method));
+            } catch (Exception e) {
+                getActivity().runOnUiThread(() ->
+                    finish(null, e.getMessage() == null ? "به‌روزرسانی ناموفق بود." : e.getMessage(), "UPDATE_FAILED"));
+            }
+        }, "MAE-Smart-Update").start();
+    }
+
     private void onDownloadFinished(DownloadManager dm, long id, File apk, String sha256) {
         int status = -1;
         int reason = 0;
@@ -205,6 +234,10 @@ public class NativeToolsPlugin extends Plugin {
     }
 
     private void openInstaller(File apk, boolean verified) {
+        openInstaller(apk, verified, "full");
+    }
+
+    private void openInstaller(File apk, boolean verified, String method) {
         try {
             Context ctx = getContext();
             Uri uri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", apk);
@@ -215,6 +248,7 @@ public class NativeToolsPlugin extends Plugin {
             JSObject r = new JSObject();
             r.put("status", "installer_opened");
             r.put("verified", verified);
+            r.put("method", method);
             finish(r, null, null);
         } catch (Exception e) {
             finish(null, "باز کردن نصب‌کنندهٔ اندروید ممکن نشد.", "INSTALLER");
