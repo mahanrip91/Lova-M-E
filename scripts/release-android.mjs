@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync, statSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, statSync, mkdirSync, copyFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
@@ -51,6 +51,10 @@ const existing = spawnSync("gh", ["release", "view", tag, "--repo", "mahanrip91/
 if (existing.status === 0) throw new Error(`Release ${tag} already exists; refusing to overwrite it.`);
 
 const apkName = "M-AND-E.apk";
+const publishDir = path.resolve("dist/updates");
+mkdirSync(publishDir, { recursive: true });
+const publishApk = path.join(publishDir, apkName);
+copyFileSync(apk, publishApk);
 const releaseUrl = `https://github.com/mahanrip91/Lova-M-E/releases/download/${tag}/${apkName}`;
 const apkBytes = statSync(apk).size;
 const apkSha = hash(apk);
@@ -95,8 +99,8 @@ const manifest = {
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
 run("node", ["scripts/sign-update-manifest.mjs"]);
 
-const assets = [`${apk}#${apkName}`];
-if (patch) assets.push(`${patch}#M-AND-E-${tag}.bsdiff`);
+const assets = [publishApk];
+if (patch) assets.push(patch);
 run("gh", [
   "release", "create", tag, ...assets,
   "--repo", "mahanrip91/Lova-M-E",
