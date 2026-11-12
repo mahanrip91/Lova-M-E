@@ -17,9 +17,32 @@ type NativeTools = {
   getUpdateNotificationStatus(): Promise<{ permission: string; enabled: boolean }>;
   requestUpdateNotificationPermission(): Promise<{ permission: string; enabled: boolean }>;
   downloadSmartAndInstall(): Promise<{ status: string; verified: boolean; method: "delta" | "full"; fallbackReason?: string }>;
+  addListener(eventName: "updateProgress", listenerFunc: (progress: UpdateProgress) => void): Promise<{ remove(): Promise<void> }>;
+};
+
+type UpdateProgress = {
+  stage: "checking" | "downloading" | "rebuilding" | "verifying" | "fallback";
+  method: "delta" | "full" | "";
+  downloadedBytes: number;
+  totalBytes: number;
+  percent: number;
 };
 
 const Native = registerPlugin<NativeTools>("NativeTools");
+
+function exactBytes(bytes: number): string {
+  const value = Math.max(0, Math.floor(bytes));
+  const kb = value / 1024;
+  return `${value.toLocaleString("fa-IR")} بایت (${kb.toLocaleString("fa-IR", { maximumFractionDigits: 1 })} کیلوبایت)`;
+}
+
+function progressLabel(progress: UpdateProgress): string {
+  if (progress.stage === "checking") return "در حال بررسی نسخه و سازگاری پچ…";
+  if (progress.stage === "fallback") return "پچ قابل استفاده نبود؛ دریافت APK کامل شروع می‌شود…";
+  if (progress.stage === "rebuilding") return "دانلود تمام شد؛ در حال بازسازی APK از روی پچ…";
+  if (progress.stage === "verifying") return "در حال بررسی صحت فایل و امضای برنامه…";
+  return progress.method === "delta" ? "در حال دریافت پچ کم‌حجم داخل برنامه…" : "در حال دریافت APK کامل داخل برنامه…";
+}
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "M AND E · تنظیمات" }] }),
@@ -37,6 +60,7 @@ function SettingsPage() {
   const hash = useLocation({ select: (l) => l.hash });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
@@ -180,9 +204,13 @@ function SettingsPage() {
     const apkAvailable = manifest != null && isNewerVersion(manifest, versionCode);
     if (!apkAvailable) return;
     setBusy(true);
+    setUpdateProgress({ stage: "checking", method: "", downloadedBytes: 0, totalBytes: 0, percent: 0 });
+    let progressListener: { remove(): Promise<void> } | null = null;
     try {
-      setMessage("در حال دریافت تغییرات؛ اگر پچ مناسب نباشد، APK کامل خودکار دریافت می‌شود…");
+      progressListener = await Native.addListener("updateProgress", (progress) => setUpdateProgress(progress));
+      setMessage("دریافت امن به‌روزرسانی داخل برنامه شروع شد…");
       const r = await Native.downloadSmartAndInstall();
+      setUpdateProgress((current) => current ? { ...current, stage: "verifying", percent: 100 } : current);
       setMessage(r.method === "delta"
         ? "پچ کم‌حجم اعمال و APK جدید بازسازی و بررسی شد؛ نصب را در پنجرهٔ اندروید تأیید کن."
         : r.fallbackReason
@@ -191,6 +219,7 @@ function SettingsPage() {
     } catch (e) {
       setMessage(e instanceof Error && e.message ? e.message : "به‌روزرسانی ناموفق بود.");
     } finally {
+      await progressListener?.remove().catch(() => undefined);
       setBusy(false);
     }
   }
@@ -284,7 +313,7 @@ function SettingsPage() {
         <dl className="mb-4 grid gap-1 text-xs text-muted-foreground">
           <div className="flex justify-between gap-2"><dt>نسخهٔ نصب‌شده</dt><dd dir="ltr">{version}{versionCode != null ? ` (${versionCode})` : ""}</dd></div>
           {manifest && <div className="flex justify-between gap-2"><dt>آخرین نسخه</dt><dd dir="ltr">{manifest.versionName} ({manifest.versionCode})</dd></div>}
-          {size && <div className="flex justify-between gap-2"><dt>حجم فایل</dt><dd>{size}</dd></div>}
+          {size && <div className="flex justify-between gap-2"><dt>حجم دانلود</dt><dd>{manifest?.delta?.fromVersionCode === versionCode ? exactBytes(manifest.delta.patchSizeBytes) : size}</dd></div>}
           {lastCheck && <div className="flex justify-between gap-2"><dt>آخرین بررسی</dt><dd>{new Date(lastCheck.at).toLocaleString("fa-IR", { timeZone: "Asia/Tehran" })}</dd></div>}
           {lastCheck && <div className="flex justify-between gap-2"><dt>نتیجه</dt><dd>{lastCheck.result}</dd></div>}
         </dl>
@@ -303,6 +332,30 @@ function SettingsPage() {
           {hasUpdate ? <Download className="mr-2 size-4" /> : <RefreshCw className="mr-2 size-4" />}
           {hasUpdate ? "دریافت و اعمال به‌روزرسانی" : "بررسی به‌روزرسانی"}
         </Button>
+        {updateProgress && busy && (
+          <div className="mt-4 rounded-2xl bg-background/40 p-3" aria-live="polite">
+            <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+              <span className="font-medium">{progressLabel(updateProgress)}</span>
+              <span dir="ltr" className="shrink-0 tabular-nums">{updateProgress.percent.toLocaleString("fa-IR")}%</span>
+            </div>
+            <div
+              className="h-2.5 w-full overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-label="پیشرفت دریافت به‌روزرسانی"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={updateProgress.percent}
+            >
+              <div className="h-full rounded-full bg-primary transition-[width] duration-200" style={{ width: `${updateProgress.percent}%` }} />
+            </div>
+            {updateProgress.totalBytes > 0 && (
+              <div className="mt-2 flex flex-wrap justify-between gap-1 text-[11px] text-muted-foreground" dir="rtl">
+                <span>{exactBytes(updateProgress.downloadedBytes)} از {exactBytes(updateProgress.totalBytes)}</span>
+                <span>{updateProgress.method === "delta" ? "پچ کم‌حجم" : "APK کامل"}</span>
+              </div>
+            )}
+          </div>
+        )}
         {native && notif && !notif.enabled && (
           <Button variant="outline" className="mt-2 w-full" disabled={busy} onClick={() => void requestNotificationPermission()}>
             <Bell className="mr-2 size-4" /> اجازهٔ اعلان نسخهٔ جدید

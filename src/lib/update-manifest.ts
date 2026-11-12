@@ -149,8 +149,9 @@ export function isBelowMinimum(manifest: UpdateManifest, installedVersionCode: n
 
 export function formatBytes(bytes: number | null): string | null {
   if (bytes == null) return null;
-  const mb = bytes / (1024 * 1024);
-  return `${mb.toLocaleString("fa-IR", { maximumFractionDigits: 1 })} مگابایت`;
+  if (bytes < 1024) return `${bytes.toLocaleString("fa-IR")} بایت`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toLocaleString("fa-IR", { maximumFractionDigits: 1 })} کیلوبایت`;
+  return `${(bytes / (1024 * 1024)).toLocaleString("fa-IR", { maximumFractionDigits: 1 })} مگابایت`;
 }
 
 export async function fetchUpdateManifest(fetcher: typeof fetch = fetch): Promise<ManifestResult> {

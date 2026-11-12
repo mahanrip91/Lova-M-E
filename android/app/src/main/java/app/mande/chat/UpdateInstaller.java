@@ -38,9 +38,14 @@ final class UpdateInstaller {
         }
     }
 
+    interface ProgressListener {
+        void onProgress(String stage, String method, long downloadedBytes, long totalBytes);
+    }
+
     private UpdateInstaller() {}
 
-    static Result prepare(Context context) throws Exception {
+    static Result prepare(Context context, ProgressListener progress) throws Exception {
+        report(progress, "checking", "", 0, 0);
         JSONObject manifest = fetchVerifiedManifest();
         long targetCode = manifest.getLong("versionCode");
         String targetName = manifest.getString("versionName");
@@ -55,7 +60,8 @@ final class UpdateInstaller {
         long installedCode = PackageInfoCompat.getLongVersionCode(installed);
         if (targetCode <= installedCode) throw new IllegalStateException("نسخهٔ جدیدتری برای نصب وجود ندارد.");
 
-        File updatesDir = new File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS), "updates");
+        // Keep the reconstructed APK inside the app's private cache; never use public Downloads.
+        File updatesDir = new File(context.getCacheDir(), "mae-updates");
         if (!updatesDir.exists() && !updatesDir.mkdirs()) throw new IllegalStateException("ساخت پوشهٔ به‌روزرسانی ممکن نشد.");
         File finalApk = new File(updatesDir, "M-AND-E-update.apk");
         File tempDir = new File(context.getCacheDir(), "mae-updates");
@@ -80,8 +86,11 @@ final class UpdateInstaller {
 
                 File baseApk = new File(context.getApplicationInfo().sourceDir);
                 if (!sha256(baseApk).equals(fromHash)) throw new SecurityException("فایل پایه با پچ سازگار نیست.");
-                downloadVerified(patchUrl, patch, patchSize, patchHash, MAX_PATCH_BYTES);
+                report(progress, "downloading", "delta", 0, patchSize);
+                downloadVerified(patchUrl, patch, patchSize, patchHash, MAX_PATCH_BYTES, progress, "delta");
+                report(progress, "rebuilding", "delta", patchSize, patchSize);
                 BsdiffApplier.apply(baseApk, patch, rebuilt, targetSize, MAX_APK_BYTES);
+                report(progress, "verifying", "delta", patchSize, patchSize);
                 if (!sha256(rebuilt).equals(apkHash)) throw new SecurityException("خروجی پچ با APK منتشرشده یکی نیست.");
                 validateApk(context, rebuilt, targetCode, targetName, installed);
                 copyFile(rebuilt, finalApk);
@@ -91,6 +100,7 @@ final class UpdateInstaller {
                     ? deltaFailure.getClass().getSimpleName()
                     : deltaFailure.getMessage();
                 android.util.Log.w("MAE-UPDATE", "Delta patch failed; using verified full APK: " + fallbackReason, deltaFailure);
+                report(progress, "fallback", "full", 0, apkSize);
                 // Delta is an optimization only. A verified full APK is the safe fallback.
                 //noinspection ResultOfMethodCallIgnored
                 patch.delete();
@@ -100,7 +110,9 @@ final class UpdateInstaller {
             }
         }
 
-        downloadVerified(apkUrl, finalApk, apkSize, apkHash, MAX_APK_BYTES);
+        report(progress, "downloading", "full", 0, apkSize);
+        downloadVerified(apkUrl, finalApk, apkSize, apkHash, MAX_APK_BYTES, progress, "full");
+        report(progress, "verifying", "full", apkSize, apkSize);
         try {
             validateApk(context, finalApk, targetCode, targetName, installed);
         } catch (Exception invalid) {
@@ -185,7 +197,8 @@ final class UpdateInstaller {
         } catch (Exception e) { return false; }
     }
 
-    private static void downloadVerified(String url, File output, long expectedSize, String expectedHash, long max) throws Exception {
+    private static void downloadVerified(String url, File output, long expectedSize, String expectedHash, long max,
+                                         ProgressListener progress, String method) throws Exception {
         if (expectedSize <= 0 || expectedSize > max) throw new SecurityException("حجم دانلود نامعتبر است.");
         File parent = output.getAbsoluteFile().getParentFile();
         if (!parent.exists() && !parent.mkdirs()) throw new IllegalStateException("ساخت پوشهٔ دانلود ناموفق بود.");
@@ -201,6 +214,7 @@ final class UpdateInstaller {
                 if (total > expectedSize || total > max) throw new SecurityException("حجم فایل از مقدار اعلام‌شده بیشتر است.");
                 digest.update(buffer, 0, n);
                 out.write(buffer, 0, n);
+                report(progress, "downloading", method, total, expectedSize);
             }
             if (total != expectedSize || !hex(digest.digest()).equals(expectedHash)) {
                 throw new SecurityException("بررسی صحت فایل دانلودشده ناموفق بود.");
@@ -212,6 +226,11 @@ final class UpdateInstaller {
                 output.delete();
             }
         }
+    }
+
+    private static void report(ProgressListener listener, String stage, String method, long downloaded, long total) {
+        if (listener == null) return;
+        listener.onProgress(stage, method, Math.max(0, downloaded), Math.max(0, total));
     }
 
     private static void validateApk(Context context, File apk, long expectedCode, String expectedName, PackageInfo installed) throws Exception {
