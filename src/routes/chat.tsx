@@ -134,8 +134,10 @@ function Chat() {
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 100,
     getItemKey: (index) => messages[index]?.u ?? index,
-
-    overscan: 18,
+    anchorTo: "end",
+    followOnAppend: true,
+    scrollEndThreshold: 180,
+    overscan: 12,
   });
 
   useEffect(() => {
@@ -500,26 +502,10 @@ function Chat() {
 
     loadingOlderRef.current = true;
     setLoadingOlder(true);
-    const anchor = [...element.querySelectorAll<HTMLElement>("[data-message-uid]")].find((node) => {
-      const rect = node.getBoundingClientRect();
-      const viewport = element.getBoundingClientRect();
-      return rect.bottom >= viewport.top;
-    });
-    const anchorTop = anchor?.getBoundingClientRect().top;
-
     try {
       const loadedUids = await loadOlderArchiveMessages();
       if (loadedUids.length) {
         setVisibleArchiveUids((current) => new Set([...current, ...loadedUids]));
-      }
-      if (loadedUids.length > 0 && anchor && anchorTop !== undefined) {
-        window.requestAnimationFrame(() => {
-          window.requestAnimationFrame(() => {
-            if (anchor.isConnected) {
-              element.scrollTop += anchor.getBoundingClientRect().top - anchorTop;
-            }
-          });
-        });
       }
     } catch (err) {
       setError(chatError(err));
@@ -819,13 +805,16 @@ function Chat() {
       <section
         ref={scrollRef}
         onScroll={handleChatScroll}
-        className="min-h-0 flex-1 overflow-y-auto py-4"
+        className="relative min-h-0 flex-1 overflow-y-auto py-4"
         aria-label="همه پیام‌ها"
       >
         {loadingOlder && (
-          <p className="py-3 text-center text-xs text-muted-foreground">
-            در حال بارگذاری پیام‌های قدیمی‌تر…
-          </p>
+          <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
+            <span className="rounded-full border border-primary/20 bg-background/90 px-4 py-2 text-xs text-muted-foreground shadow-lg backdrop-blur-xl">
+              <LoaderCircle className="me-1 inline size-3 animate-spin" />
+              در حال بارگذاری پیام‌های قدیمی‌تر…
+            </span>
+          </div>
         )}
 
         {loading && (

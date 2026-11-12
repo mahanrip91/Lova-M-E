@@ -2,14 +2,27 @@
 import { useSyncExternalStore } from "react";
 
 export type Viewer = "M" | "E";
-export interface Theme { mahan: string; elisa: string; glow: number }
+export interface Theme {
+  mahan: string;
+  elisa: string;
+  glow: number;
+  backgroundImage?: string;
+  imageX?: number;
+  imageY?: number;
+  imageZoom?: number;
+}
 export const DEFAULT_THEME: Theme = { mahan: "#4fb8ff", elisa: "#ff5fae", glow: 35 };
 
 let viewer: Viewer | null = null;
 let theme: Theme = DEFAULT_THEME;
 const ls = new Set<() => void>();
 const emit = () => ls.forEach((l) => l());
-const sub = (l: () => void) => { ls.add(l); return () => { ls.delete(l); }; };
+const sub = (l: () => void) => {
+  ls.add(l);
+  return () => {
+    ls.delete(l);
+  };
+};
 
 export function setViewer(v: Viewer | null) {
   if (v === viewer) return;
@@ -17,12 +30,26 @@ export function setViewer(v: Viewer | null) {
   theme = loadTheme(v);
   emit();
 }
-export const useViewer = () => useSyncExternalStore(sub, () => viewer, () => null);
-export const useTheme = () => useSyncExternalStore(sub, () => theme, () => DEFAULT_THEME);
+export const useViewer = () =>
+  useSyncExternalStore(
+    sub,
+    () => viewer,
+    () => null,
+  );
+export const useTheme = () =>
+  useSyncExternalStore(
+    sub,
+    () => theme,
+    () => DEFAULT_THEME,
+  );
 
 function loadTheme(v: Viewer | null): Theme {
   if (!v || typeof window === "undefined") return DEFAULT_THEME;
-  try { return { ...DEFAULT_THEME, ...JSON.parse(localStorage.getItem(`mae:theme:${v}`) || "{}") }; } catch { return DEFAULT_THEME; }
+  try {
+    return { ...DEFAULT_THEME, ...JSON.parse(localStorage.getItem(`mae:theme:${v}`) || "{}") };
+  } catch {
+    return DEFAULT_THEME;
+  }
 }
 export function saveTheme(t: Theme) {
   theme = t;
@@ -42,8 +69,24 @@ export function applyTheme(v: Viewer | null, t: Theme) {
   r.style.setProperty("--ring", me);
   r.style.setProperty("--accent", other);
   r.style.setProperty("--tint-me", `color-mix(in oklch, ${me} ${t.glow}%, transparent)`);
-  r.style.setProperty("--tint-other", `color-mix(in oklch, ${other} ${Math.round(t.glow * 0.6)}%, transparent)`);
-  r.style.setProperty("--gradient-love", v === "E" ? `linear-gradient(120deg, ${t.elisa}, oklch(0.7 0.2 320), ${t.mahan})` : `linear-gradient(120deg, ${t.mahan}, oklch(0.7 0.2 300), ${t.elisa})`);
+  r.style.setProperty(
+    "--tint-other",
+    `color-mix(in oklch, ${other} ${Math.round(t.glow * 0.6)}%, transparent)`,
+  );
+  r.style.setProperty(
+    "--gradient-love",
+    v === "E"
+      ? `linear-gradient(120deg, ${t.elisa}, oklch(0.7 0.2 320), ${t.mahan})`
+      : `linear-gradient(120deg, ${t.mahan}, oklch(0.7 0.2 300), ${t.elisa})`,
+  );
   r.style.setProperty("--glow-mahan", `0 0 24px color-mix(in oklch, ${t.mahan} 45%, transparent)`);
   r.style.setProperty("--glow-elisa", `0 0 24px color-mix(in oklch, ${t.elisa} 45%, transparent)`);
+  r.style.setProperty(
+    "--custom-bg-image",
+    t.backgroundImage ? `url("${t.backgroundImage}")` : "none",
+  );
+  r.style.setProperty("--custom-bg-opacity", t.backgroundImage ? "0.28" : "0");
+  r.style.setProperty("--custom-bg-x", `${t.imageX ?? 50}%`);
+  r.style.setProperty("--custom-bg-y", `${t.imageY ?? 50}%`);
+  r.style.setProperty("--custom-bg-zoom", String(t.imageZoom ?? 1));
 }
