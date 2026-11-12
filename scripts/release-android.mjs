@@ -28,6 +28,14 @@ const gradle = readFileSync("android/app/build.gradle", "utf8");
 const versionCode = Number(gradle.match(/versionCode\s+(\d+)/)?.[1]);
 const versionName = gradle.match(/versionName\s+"([^"]+)"/)?.[1];
 if (!versionCode || !versionName) throw new Error("Could not read Android versionCode/versionName.");
+if (!value("apk") && !args.includes("--no-build")) {
+  const webChanges = spawnSync("git", ["status", "--porcelain", "--", "www"], { cwd: root, encoding: "utf8" });
+  if (webChanges.stdout.trim()) {
+    run("git", ["add", "www"]);
+    run("git", ["commit", "-m", "Build Android web assets " + versionName + " (" + versionCode + ")"]);
+    run("git", ["push", "origin", "main"]);
+  }
+}
 const tag = value("tag") || `v${versionName}-${versionCode}`;
 const apk = path.resolve(value("apk") || "android/app/build/outputs/apk/debug/app-debug.apk");
 let base = value("base") ? path.resolve(value("base")) : null;
