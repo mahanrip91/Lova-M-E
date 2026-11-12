@@ -13,6 +13,7 @@ import {
   Film,
   Box,
   MoreVertical,
+  Reply,
   Copy,
   Check,
   CheckCheck,
@@ -381,7 +382,10 @@ export const Bubble = memo(function Bubble({
             onClick={onReplyClick}
             className="mb-1 block w-full truncate rounded-lg border-s-2 border-primary/60 bg-background/40 px-2 py-0.5 text-start text-xs text-muted-foreground"
           >
-            {reply ? reply.x || "پیام غیرمتنی" : "پیام اصلی در آرشیو موجود نیست"}
+            <span className="flex min-w-0 items-center gap-1.5">
+              <Reply className="size-3 shrink-0 text-primary" />
+              <span className="truncate">{reply ? reply.x || "پیام غیرمتنی" : "پیام اصلی در آرشیو موجود نیست"}</span>
+            </span>
           </button>
         )}
         {k && (
@@ -581,8 +585,7 @@ export const Bubble = memo(function Bubble({
           {!compactGroupMeta && pinned && <Pin className="size-3 text-primary" aria-label="پیام سنجاق‌شده" />}
           {!compactGroupMeta && m.f && <Forward className="size-3" aria-label="فوروارد" />}
           {!compactGroupMeta && m.e && <Pencil className="size-3" aria-label="ویرایش‌شده" />}
-          <span>{fmtTime(m.t)}</span>
-          {sourceLabel && <span>{sourceLabel}</span>}
+          <span>{sourceLabel ? `${fmtTime(m.t)} - ${sourceLabel}` : fmtTime(m.t)}</span>
           {!compactGroupMeta && receipt && m.s === "LIVE" && mine && (
             <span
               title={

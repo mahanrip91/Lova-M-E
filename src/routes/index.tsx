@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Cake, Dices, Gift, Heart, Sparkles, History, PartyPopper } from "lucide-react";
+import { Cake, Dices, Gift, Heart, Sparkles, History, PartyPopper, Plus } from "lucide-react";
 import { useStore, type EventKind } from "@/lib/mae/store";
 import { LiveCounter } from "@/components/mae/Counter";
 import { fa, fmtDate, fmtDateTime, fmtTime } from "@/lib/mae/time";
@@ -36,8 +36,6 @@ function Home() {
   const events = useStore((s) => s.events);
   const navigate = useNavigate();
 
-  const sources = useStore((s) => s.sources);
-  const firstSrc = sources.find((x) => x.id === settings.firstSourceId) ?? null;
   const began = settings.beganFrom && settings.beganTo
     ? { from: settings.beganFrom, to: settings.beganTo }
     : null;
@@ -95,32 +93,10 @@ function Home() {
           <p className="mt-1 text-sm text-muted-foreground">
             {fmtDate(settings.firstFrom)} · {fmtTime(settings.firstFrom)} تا {fmtTime(settings.firstTo)} — آرشیو گروه Assassin’s Creed.
           </p>
-          {!firstSrc ? (
-            <div className="mt-4 rounded-2xl border border-gold/40 bg-gold/10 p-3 text-xs">
-              <p className="font-bold text-gold">منبع شب اول هنوز انتخاب نشده</p>
-              <p className="mt-1 text-muted-foreground">
-                آرشیوها از Supabase دریافت می‌شوند. برای پخش شب اول، منبع گفتگوی گروهی را از تنظیم
-                خاطره‌ها انتخاب کن.
-              </p>
-              <div className="mt-2">
-                <Link to="/memories" className="rounded-full border border-border px-3 py-1">
-                  انتخاب منبع شب اول
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="mt-4 rounded-2xl bg-love/10 p-4">
-                <div className="text-xs text-muted-foreground">پیام‌های ماهان و الیسا</div>
-                <div className="mt-1 font-display text-3xl text-love">{fa(settings.beganCount ?? 282)}</div>
-                <div className="mt-1 text-[11px] text-muted-foreground">فقط پیام‌های دو نفر؛ بدون ربات‌ها و رویدادهای گروه</div>
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                منبع: {firstSrc.label} · پوشش آرشیو: {fmtDateTime(firstSrc.from)} تا{" "}
-                {fmtDateTime(firstSrc.to)}
-              </p>
-            </>
-          )}
+          <div className="mt-4 rounded-2xl bg-love/10 p-4">
+            <div className="text-xs text-muted-foreground">تعداد پیام‌های ماهان و الیسا</div>
+            <div className="mt-1 font-display text-3xl text-love">{fa(settings.beganCount ?? 282)}</div>
+          </div>
           <Link
             to="/replay"
             search={{
@@ -129,7 +105,6 @@ function Home() {
               title: "روز اول ما",
               kind: "first",
             }}
-            disabled={!firstSrc}
             className="mt-5 inline-flex items-center gap-2 rounded-full bg-love px-6 py-2.5 font-bold text-primary-foreground shadow-lg aria-disabled:opacity-40"
           >
             ▶ پخش خاطره
@@ -147,7 +122,6 @@ function Home() {
           title="چطور شروع شد"
           sub={began ? `${fmtDateTime(began.from)} تا ${fmtDateTime(began.to)} · ${fa(settings.beganCount ?? 282)} پیام ماهان و الیسا` : "آرشیو در دسترس نیست"}
           icon={History}
-          badge="تأییدشده از آرشیو"
           to={
             began
               ? { from: began.from, to: began.to, title: "چطور شروع شد", kind: "began" }
@@ -180,21 +154,13 @@ function Home() {
                     ? b.kind === "elisa-greets"
                       ? "۱۰ مهر ۱۴۰۵ · ساعت ۰۰:۳۳"
                       : fmtDate(ev.from)
-                    : "هنوز تاریخ تأیید نشده"
-              }
-              badge={
-                ev?.unavailable
-                  ? "رویداد ثبت‌شده بدون پیام"
-                  : ev
-                    ? "تأییدشده توسط شما"
-                    : "نیاز به تنظیم"
+                    : ""
               }
               to={
                 ev && !ev.unavailable
                   ? { from: ev.from, to: ev.to, title: b.title, kind: b.kind }
                   : undefined
               }
-              setup={!ev}
             />
           );
         })}
@@ -206,13 +172,13 @@ function Home() {
               title={e.title}
               icon={Sparkles}
               sub={`${fmtDate(e.from)} · ${fmtTime(e.from)}`}
-              badge="خاطره‌ی شخصی"
               to={{ from: e.from, to: e.to, title: e.title, kind: "custom" }}
             />
           ))}
-        <div className="rounded-3xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-          تاریخ‌ها و بازه‌های خاطره از آرشیو اصلی ثبت شده‌اند و قابل ویرایش نیستند.
-        </div>
+        <Link to="/memories" className="glass flex items-center gap-3 rounded-3xl p-4 text-sm font-bold transition-transform hover:-translate-y-0.5">
+          <span className="grid size-10 place-items-center rounded-2xl bg-love/15 text-love"><Plus className="size-5" /></span>
+          افزودن خاطره
+        </Link>
       </div>
 
       <p className="mt-6 pb-4 text-center text-[11px] text-muted-foreground">
@@ -226,30 +192,17 @@ function MemoryCard({
   title,
   sub,
   icon: Icon,
-  badge,
   to,
-  setup,
 }: {
   title: string;
   sub: string;
   icon: typeof Cake;
-  badge: string;
   to?: { from: number; to: number; title: string; kind: string; src?: string } | undefined;
-  setup?: boolean | undefined;
 }) {
   const inner = (
     <>
       <div className="flex items-start justify-between">
         <Icon className="size-6 text-accent" />
-        <span
-          className={
-            setup
-              ? "rounded-full border border-gold/40 px-2 py-0.5 text-[10px] text-gold"
-              : "rounded-full bg-primary/15 px-2 py-0.5 text-[10px] text-primary"
-          }
-        >
-          {badge}
-        </span>
       </div>
       <div className="mt-2 font-bold">{title}</div>
       <div className="text-xs text-muted-foreground">{sub}</div>

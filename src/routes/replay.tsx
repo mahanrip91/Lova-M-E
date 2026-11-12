@@ -40,14 +40,10 @@ function Replay() {
   const sides = useStore((s) => s.sides);
   const msgs = useMemo(() => {
     const ranged = sliceRange(all, from, to);
-    if (kind === "first" || kind === "began") return ranged.filter((m) => {
-      const side = sides[m.k]?.side;
-      return side === "M" || side === "E";
-    });
     return src ? ranged.filter((m) => m.s === src) : ranged;
   }, [all, from, to, src, kind, sides]);
   const segments = useMemo(() => splitAtMidnight(from, to, msgs), [from, to, msgs]);
-  const [phase, setPhase] = useState<"intro" | "play">("intro");
+  const [phase, setPhase] = useState<"intro" | "play">(kind === "first" || kind === "began" ? "play" : "intro");
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
@@ -55,7 +51,7 @@ function Replay() {
   const [rangeError, setRangeError] = useState("");
 
   const endRef = useRef<HTMLDivElement>(null);
-  const srcLabel = useMemo(() => Object.fromEntries(sources.map((s) => [s.id, s.label])), [sources]);
+  const sourceById = useMemo(() => Object.fromEntries(sources.map((source) => [source.id, source])), [sources]);
 
   useEffect(() => {
     if (status !== "ready" || !from || !to || to < from) return;
@@ -77,7 +73,11 @@ function Replay() {
   }, [status, from, to]);
 
 
-  useEffect(() => { setIdx(0); setPhase("intro"); setPlaying(true); }, [from, to]);
+  useEffect(() => {
+    setIdx(0);
+    setPhase(kind === "first" || kind === "began" ? "play" : "intro");
+    setPlaying(true);
+  }, [from, to, kind]);
   useEffect(() => {
     if (phase !== "intro") return;
     const t = setTimeout(() => setPhase("play"), 5000);
@@ -95,14 +95,14 @@ function Replay() {
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }); }, [idx]);
 
   if (status === "loading") return <p className="p-8 text-center text-muted-foreground">در حال بارگذاری…</p>;
-  if (status === "empty" && sources.length === 0) return <p className="p-8 text-center">ابتدا آرشیو را <Link to="/import" className="text-primary underline">وارد کن</Link>.</p>;
+  if (status === "empty" && sources.length === 0) return <p className="p-8 text-center">آرشیو گفتگو در دسترس نیست.</p>;
 
   const first = msgs[0];
   const firstSide = first ? sides[first.k]?.side : undefined;
-  const srcSet = [...new Set(msgs.map((m) => srcLabel[m.s]))];
+  const srcSet = [...new Set(msgs.map((m) => sourceById[m.s]?.label).filter(Boolean))];
   const multiDay = segments.length > 1;
   const preMidnightEmpty = false;
-  const missingSource = (kind === "first" && !src) || (!!src && !sources.some((x) => x.id === src));
+  const missingSource = !!src && !sources.some((x) => x.id === src);
 
   const windowStart = Math.max(0, idx - 120);
   const shown = msgs.slice(windowStart, idx);
@@ -110,7 +110,7 @@ function Replay() {
   const skipPrev = () => { let i = Math.max(0, idx - 2); while (i > 0 && msgs[i]!.t - msgs[i - 1]!.t < GAP_SKIP) i--; setIdx(i); };
 
   if (missingSource) {
-    return <p className="p-8 text-center">آرشیو این خاطره هنوز روی این دستگاه نیست. <Link to="/import" className="text-primary underline">وارد کردن آرشیو</Link></p>;
+    return <p className="p-8 text-center">منبع این خاطره در دسترس نیست.</p>;
   }
 
   if (rangeLoading) {
@@ -201,7 +201,16 @@ function Replay() {
           <div key={m.u}>
             {newDay && (prev ? <DayDivider label={`🌙 از نیمه‌شب گذشت · ${fmtDate(m.t)}`} sub="همان گفتگو ادامه دارد" /> : <DayDivider label={fmtDate(m.t)} />)}
             {!newDay && gap > 10 * 60000 && <p className="my-2 text-center text-[11px] text-muted-foreground">⏳ {fmtDuration(gap)} بعد</p>}
-            <Bubble m={m} side={sides[m.k]?.side} senderName={sides[m.k]?.name} sourceLabel={srcLabel[m.s]} reply={reply} replyMissing={!!m.r && !reply} animate />
+            <Bubble
+              m={m}
+              side={sides[m.k]?.side}
+              senderName={sides[m.k]?.name}
+              sourceLabel={sourceById[m.s]?.isGroup ? "گروه" : undefined}
+              compactGroupMeta={!!sourceById[m.s]?.isGroup}
+              reply={reply}
+              replyMissing={!!m.r && !reply}
+              animate
+            />
           </div>
         );
       })}

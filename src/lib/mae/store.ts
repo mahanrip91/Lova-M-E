@@ -213,9 +213,20 @@ function derive(messages: Msg[], sides: Record<string, SideEntry>) {
 let remoteSynced = false;
 let remoteSyncPromise: Promise<boolean> | null = null;
 const ARCHIVE_PAGE_SIZE = 50;
-let archiveOffset = 0;
-let archiveTotal = 0;
+let archiveCursorBefore: { occurredAt: string; uid: string } | null = null;
+let archiveHasMore = false;
 let archivePageLoading = false;
+
+function moveArchiveCursorBefore(occurredAt: string, uid: string) {
+  if (
+    !archiveCursorBefore ||
+    occurredAt < archiveCursorBefore.occurredAt ||
+    (occurredAt === archiveCursorBefore.occurredAt && uid < archiveCursorBefore.uid)
+  ) {
+    archiveCursorBefore = { occurredAt, uid };
+    archiveHasMore = true;
+  }
+}
 
 async function syncRemoteArchive() {
   const { data: auth, error: authError } = await supabase.auth.getUser();
@@ -313,8 +324,8 @@ async function syncRemoteArchive() {
 
   // پیام‌های آرشیو در شروع برنامه دانلود نمی‌شوند.
   // فقط با انتخاب تاریخ، محتوای همان بازه دریافت می‌شود.
-  archiveOffset = 0;
-  archiveTotal = count ?? 0;
+  archiveCursorBefore = null;
+  archiveHasMore = (count ?? 0) > 0;
 
   const kindMap: Record<string, Msg["kd"]> = {
     text: "text",
@@ -554,77 +565,120 @@ export function syncRemoteArchiveAfterLogin(): Promise<boolean> {
 }
 
 export function hasOlderArchiveMessages() {
-  return archiveOffset < archiveTotal;
+  return archiveHasMore && archiveCursorBefore !== null;
 }
 
-export async function loadOlderArchiveMessages(): Promise<number> {
-  if (archivePageLoading || !hasOlderArchiveMessages()) return 0;
+function mapArchiveRows(rows: ArchiveMessageRow[]): Msg[] {
+  const kindMap: Record<string, Msg["kd"]> = {
+    text: "text", image: "image", gif: "gif", video: "video", voice: "voice",
+    music: "music", file: "file", sticker: "sticker", post: "post", nontext: "nontext",
+  };
+  return rows.map((r) => {
+    const m: Msg = {
+      u: `archive:${r.uid}`,
+      s: r.source_id,
+      t: Date.parse(r.occurred_at),
+      k: `${r.source_id}:${r.sender_key}`,
+      x: r.body ?? "",
+      kd: kindMap[r.kind] ?? "nontext",
+      o: Number(r.original_order),
+    };
+    if (r.reply_uid) m.r = `archive:${r.reply_uid}`;
+    if (r.media_label) m.m = r.media_label;
+    if (r.is_edited) m.e = 1;
+    if (r.is_forwarded) m.f = 1;
+    return m;
+  });
+}
 
+async function mergeArchiveRows(rows: ArchiveMessageRow[]): Promise<void> {
+  if (!rows.length) return;
+  const incoming = mapArchiveRows(rows);
+  const seen = new Set(state.messages.map((m) => m.u));
+  const merged = sortMessages(
+    [...state.messages, ...incoming.filter((m) => !seen.has(m.u))],
+    state.sources.map((source) => source.id),
+  );
+  await set("mae:messages", merged);
+  setState({
+    messages: merged,
+    status: merged.length ? "ready" : "empty",
+    ...derive(merged, state.sides),
+  });
+}
+
+/** Fetches one quoted archive message by UID when it is outside the loaded window. */
+export async function ensureArchiveMessage(uid: string): Promise<Msg | null> {
+  if (!uid.startsWith("archive:")) return null;
+  const cached = state.messages.find((message) => message.u === uid);
+  if (cached) {
+    moveArchiveCursorBefore(new Date(cached.t).toISOString(), uid.slice("archive:".length));
+    return cached;
+  }
+  const { data, error } = await supabase
+    .from("archive_messages")
+    .select("uid,source_id,occurred_at,sender_key,body,kind,original_order,reply_uid,media_label,is_edited,is_forwarded")
+    .eq("uid", uid.slice("archive:".length))
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  moveArchiveCursorBefore(data.occurred_at, data.uid);
+  await mergeArchiveRows([data as ArchiveMessageRow]);
+  return state.messages.find((message) => message.u === uid) ?? null;
+}
+
+/** Always seed the chat with the newest archive page before paging backwards. */
+export async function loadLatestArchiveMessages(): Promise<string[]> {
+  if (archivePageLoading) return [];
   archivePageLoading = true;
   try {
-    const start = archiveOffset;
     const { data, error } = await supabase
       .from("archive_messages")
-      .select(
-        "uid,source_id,occurred_at,sender_key,body,kind,original_order,reply_uid,media_label,is_edited,is_forwarded",
-      )
+      .select("uid,source_id,occurred_at,sender_key,body,kind,original_order,reply_uid,media_label,is_edited,is_forwarded")
       .order("occurred_at", { ascending: false })
       .order("uid", { ascending: false })
-      .range(start, start + ARCHIVE_PAGE_SIZE - 1);
-
+      .limit(ARCHIVE_PAGE_SIZE);
     if (error) throw error;
-
-    const rows = [...(data ?? [])].reverse();
+    const rows = data ?? [];
     if (!rows.length) {
-      archiveOffset = archiveTotal;
-      return 0;
+      archiveCursorBefore = null;
+      archiveHasMore = false;
+      return [];
     }
+    const oldest = rows[rows.length - 1]!;
+    archiveCursorBefore = { occurredAt: oldest.occurred_at, uid: oldest.uid };
+    archiveHasMore = rows.length === ARCHIVE_PAGE_SIZE;
+    await mergeArchiveRows([...rows].reverse());
+    return rows.map((row) => `archive:${row.uid}`);
+  } finally {
+    archivePageLoading = false;
+  }
+}
 
-    const kindMap: Record<string, Msg["kd"]> = {
-      text: "text",
-      image: "image",
-      gif: "gif",
-      video: "video",
-      voice: "voice",
-      music: "music",
-      file: "file",
-      sticker: "sticker",
-      post: "post",
-      nontext: "nontext",
-    };
-
-    const older: Msg[] = rows.map((r: ArchiveMessageRow) => {
-      const m: Msg = {
-        u: `archive:${r.uid}`,
-        s: r.source_id,
-        t: Date.parse(r.occurred_at),
-        k: `${r.source_id}:${r.sender_key}`,
-        x: r.body ?? "",
-        kd: kindMap[r.kind] ?? "nontext",
-        o: Number(r.original_order),
-      };
-      if (r.reply_uid) m.r = `archive:${r.reply_uid}`;
-      if (r.media_label) m.m = r.media_label;
-      if (r.is_edited) m.e = 1;
-      if (r.is_forwarded) m.f = 1;
-      return m;
-    });
-
-    const seen = new Set(state.messages.map((m) => m.u));
-    const merged = sortMessages(
-      [...state.messages, ...older.filter((m) => !seen.has(m.u))],
-      state.sources.map((s) => s.id),
-    );
-
-    await set("mae:messages", merged);
-    setState({
-      messages: merged,
-      status: merged.length ? "ready" : "empty",
-      ...derive(merged, state.sides),
-    });
-
-    archiveOffset += rows.length;
-    return rows.length;
+/** Loads the page immediately before the oldest page already visited. */
+export async function loadOlderArchiveMessages(): Promise<string[]> {
+  if (archivePageLoading || !hasOlderArchiveMessages() || !archiveCursorBefore) return [];
+  archivePageLoading = true;
+  try {
+    const cursor = archiveCursorBefore;
+    const { data, error } = await supabase
+      .from("archive_messages")
+      .select("uid,source_id,occurred_at,sender_key,body,kind,original_order,reply_uid,media_label,is_edited,is_forwarded")
+      .or(`occurred_at.lt.${cursor.occurredAt},and(occurred_at.eq.${cursor.occurredAt},uid.lt.${cursor.uid})`)
+      .order("occurred_at", { ascending: false })
+      .order("uid", { ascending: false })
+      .limit(ARCHIVE_PAGE_SIZE);
+    if (error) throw error;
+    const rows = data ?? [];
+    if (!rows.length) {
+      archiveHasMore = false;
+      return [];
+    }
+    const oldest = rows[rows.length - 1]!;
+    archiveCursorBefore = { occurredAt: oldest.occurred_at, uid: oldest.uid };
+    archiveHasMore = rows.length === ARCHIVE_PAGE_SIZE;
+    await mergeArchiveRows([...rows].reverse());
+    return rows.map((row) => `archive:${row.uid}`);
   } finally {
     archivePageLoading = false;
   }
@@ -671,6 +725,11 @@ export async function ensureArchiveRange(from: number, to: number): Promise<numb
     post: "post",
     nontext: "nontext",
   };
+
+  if (rows.length) {
+    const earliest = rows[0]!;
+    moveArchiveCursorBefore(earliest.occurred_at, earliest.uid);
+  }
 
   const incoming: Msg[] = rows.map((r: ArchiveMessageRow) => {
     const m: Msg = {

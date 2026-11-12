@@ -27,7 +27,7 @@ export function LiveCounter() {
       <div className="relative flex items-start justify-between gap-2">
         <div>
           <h2 id="counter-title" className="font-display text-2xl">چند وقته با همیم؟</h2>
-          <p className="mt-1 text-xs text-muted-foreground">از تاریخ شروعِ تأییدشده ({fmtDateTime(start)}) تا همین الان، به وقت تهران</p>
+          <p className="mt-1 text-xs text-muted-foreground">از تاریخ شروع ({fmtDateTime(start)}) تا همین الان، به وقت تهران</p>
         </div>
       </div>
       {e ? (

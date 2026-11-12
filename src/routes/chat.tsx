@@ -1,10 +1,11 @@
 import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowRight,
+  CalendarClock,
   LoaderCircle,
   LogOut,
   MessageCircle,
@@ -39,8 +40,11 @@ import type { Profile } from "@/lib/chat/types";
 import {
   syncRemoteArchiveAfterLogin,
   ensureArchiveRange,
+  loadLatestArchiveMessages,
   loadOlderArchiveMessages,
   hasOlderArchiveMessages,
+  getState,
+  ensureArchiveMessage,
   useStore,
   toggleBookmark,
   upsertLiveChatMessages,
@@ -79,10 +83,16 @@ function Chat() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const messages = useStore((s) => s.messages);
+  const allMessages = useStore((s) => s.messages);
+  const [visibleArchiveUids, setVisibleArchiveUids] = useState<Set<string>>(() => new Set());
+  const messages = useMemo(
+    () => allMessages.filter((message) => message.s === "LIVE" || visibleArchiveUids.has(message.u) || message.u === targetUid),
+    [allMessages, visibleArchiveUids, targetUid],
+  );
   const sources = useStore((s) => s.sources);
   const sides = useStore((s) => s.sides);
   const bookmarks = useStore((s) => s.bookmarks);
+  const uidIndex = useStore((s) => s.uidIndex);
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,6 +102,7 @@ function Chat() {
   const [attempt, setAttempt] = useState(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [showJumpLatest, setShowJumpLatest] = useState(false);
+  const [jumpAt, setJumpAt] = useState("");
   const [pinnedUid, setPinnedUid] = useState<string | null>(null);
   const [peerOnline, setPeerOnline] = useState(false);
   const [peerLastSeen, setPeerLastSeen] = useState<string | null>(null);
@@ -182,8 +193,13 @@ function Chat() {
 
         try {
           await syncRemoteArchiveAfterLogin();
+          const latestUids = await loadLatestArchiveMessages();
+          if (active) setVisibleArchiveUids(new Set(latestUids));
         } catch (syncError) {
           console.warn("M AND E archive sync failed:", syncError);
+          if (active) {
+            setVisibleArchiveUids(new Set(getState().messages.filter((message) => message.s !== "LIVE").map((message) => message.u)));
+          }
         }
 
         if (!active) return;
@@ -317,11 +333,13 @@ function Chat() {
       const frame1 = window.requestAnimationFrame(() => {
         virtualizer.scrollToIndex(targetIndex, { align: "center", behavior: "auto" });
         window.requestAnimationFrame(() => {
-          virtualizer.scrollToIndex(targetIndex, { align: "center", behavior: "auto" });
-          window.requestAnimationFrame(() => {
-            const target = scrollRef.current?.querySelector<HTMLElement>(`[data-index="${targetIndex}"]`);
-            target?.scrollIntoView({ block: "center", behavior: "smooth" });
-          });
+          const container = scrollRef.current;
+          const target = container?.querySelector<HTMLElement>(`[data-index="${targetIndex}"]`);
+          if (container && target) {
+            const containerRect = container.getBoundingClientRect();
+            const targetRect = target.getBoundingClientRect();
+            container.scrollTop += targetRect.top - containerRect.top - (container.clientHeight - targetRect.height) / 2;
+          }
         });
       });
       return () => window.cancelAnimationFrame(frame1);
@@ -336,7 +354,15 @@ function Chat() {
       try {
         if (targetUid.startsWith("archive:")) {
           if (!targetAt) throw new Error("زمان پیام جست‌وجوشده مشخص نیست.");
-          await ensureArchiveRange(targetAt, targetAt);
+          const rangeFrom = targetAt - 30 * 60 * 1000;
+          const rangeTo = targetAt + 30 * 60 * 1000;
+          await ensureArchiveRange(rangeFrom, rangeTo);
+          if (!cancelled) {
+            const contextUids = getState().messages
+              .filter((message) => message.t >= rangeFrom && message.t <= rangeTo && message.s !== "LIVE")
+              .map((message) => message.u);
+            setVisibleArchiveUids((current) => new Set([...current, ...contextUids]));
+          }
         } else if (targetUid.startsWith("live:")) {
           const row = await getLiveMessageById(targetUid.slice(5));
           if (!cancelled) await upsertLiveChatMessages([row], profile);
@@ -407,18 +433,29 @@ function Chat() {
       element.scrollTop > 220 ||
       loadingOlderRef.current ||
       !hasOlderArchiveMessages()
-    )
-      return;
+    ) return;
 
     loadingOlderRef.current = true;
     setLoadingOlder(true);
-    const oldHeight = element.scrollHeight;
+    const anchor = [...element.querySelectorAll<HTMLElement>("[data-message-uid]")].find((node) => {
+      const rect = node.getBoundingClientRect();
+      const viewport = element.getBoundingClientRect();
+      return rect.bottom >= viewport.top;
+    });
+    const anchorTop = anchor?.getBoundingClientRect().top;
 
     try {
-      const added = await loadOlderArchiveMessages();
-      if (added > 0) {
+      const loadedUids = await loadOlderArchiveMessages();
+      if (loadedUids.length) {
+        setVisibleArchiveUids((current) => new Set([...current, ...loadedUids]));
+      }
+      if (loadedUids.length > 0 && anchor && anchorTop !== undefined) {
         window.requestAnimationFrame(() => {
-          element.scrollTop += element.scrollHeight - oldHeight;
+          window.requestAnimationFrame(() => {
+            if (anchor.isConnected) {
+              element.scrollTop += anchor.getBoundingClientRect().top - anchorTop;
+            }
+          });
         });
       }
     } catch (err) {
@@ -426,6 +463,56 @@ function Chat() {
     } finally {
       loadingOlderRef.current = false;
       setLoadingOlder(false);
+    }
+  }
+
+  async function jumpToReply(uid: string) {
+    try {
+      if (uid.startsWith("archive:")) {
+        const target = await ensureArchiveMessage(uid);
+        if (!target) {
+          setError("پیام اصلی ریپلای در آرشیو پیدا نشد.");
+          return;
+        }
+        await navigate({ to: "/chat", search: { u: target.u, at: target.t } });
+        return;
+      }
+      if (uid.startsWith("live:") && profile) {
+        const target = await getLiveMessageById(uid.slice("live:".length));
+        await upsertLiveChatMessages([target], profile);
+        await navigate({ to: "/chat", search: { u: uid, at: Date.parse(target.created_at) } });
+        return;
+      }
+      setError("شناسهٔ پیام اصلی معتبر نیست.");
+    } catch (err) {
+      setError(chatError(err));
+    }
+  }
+
+  async function jumpToSelectedTime() {
+    if (!jumpAt) return;
+    const target = Date.parse(`${jumpAt}:00+03:30`);
+    if (!Number.isFinite(target)) {
+      setError("زمان انتخاب‌شده معتبر نیست.");
+      return;
+    }
+    setError("");
+    try {
+      const from = target - 60 * 60 * 1000;
+      const to = target + 60 * 60 * 1000;
+      await ensureArchiveRange(from, to);
+      const candidates = getState().messages.filter((message) => message.t >= from && message.t <= to);
+      if (!candidates.length) {
+        setError("در اطراف این زمان پیامی پیدا نشد.");
+        return;
+      }
+      setVisibleArchiveUids((current) => new Set([...current, ...candidates.filter((message) => message.s !== "LIVE").map((message) => message.u)]));
+      const nearest = candidates.reduce((best, message) =>
+        Math.abs(message.t - target) < Math.abs(best.t - target) ? message : best
+      );
+      await navigate({ to: "/chat", search: { u: nearest.u, at: nearest.t } });
+    } catch (err) {
+      setError(chatError(err));
     }
   }
 
@@ -514,7 +601,18 @@ function Chat() {
           </div>
         </div>
 
-        <div className="flex shrink-0 gap-1">
+        <div className="flex shrink-0 items-center gap-1">
+          <input
+            type="datetime-local"
+            value={jumpAt}
+            onChange={(event) => setJumpAt(event.target.value)}
+            aria-label="انتخاب تاریخ و ساعت برای رفتن به پیام"
+            title="انتخاب زمان"
+            className="h-9 w-[9.5rem] rounded-xl border border-border bg-background/70 px-2 text-[10px] text-foreground"
+          />
+          <Button type="button" variant="ghost" size="icon" title="رفتن به زمان انتخاب‌شده" aria-label="رفتن به زمان انتخاب‌شده" onClick={() => void jumpToSelectedTime()}>
+            <CalendarClock className="size-4" />
+          </Button>
           <Button asChild variant="ghost" size="icon" title="خانه" aria-label="خانه">
             <Link to="/">
               <ArrowRight />
@@ -539,7 +637,7 @@ function Chat() {
           <div className="min-w-0 flex-1">
             <p className="text-[11px] text-muted-foreground">پیام سنجاق‌شده</p>
             <p className="truncate text-sm">
-              {messages.find((message) => message.u === pinnedUid)?.x ||
+              {allMessages.find((message) => message.u === pinnedUid)?.x ||
                 "پیام رسانه‌ای یا خارج از بخش بارگذاری‌شده"}
             </p>
           </div>
@@ -549,9 +647,10 @@ function Chat() {
             size="sm"
             onClick={() => {
               const index = messages.findIndex((message) => message.u === pinnedUid);
-              if (index >= 0)
-                virtualizer.scrollToIndex(index, { align: "center", behavior: "smooth" });
-              else setError("این پیام در بخش فعلی بارگذاری نشده است.");
+              const pinned = allMessages.find((message) => message.u === pinnedUid);
+              if (index >= 0) virtualizer.scrollToIndex(index, { align: "center", behavior: "smooth" });
+              else if (pinned) void navigate({ to: "/chat", search: { u: pinned.u, at: pinned.t } });
+              else setError("این پیام در آرشیو پیدا نشد.");
             }}
           >
             نمایش
@@ -596,6 +695,8 @@ function Chat() {
               const source = sources.find((s) => s.id === message.s);
               const senderName = side === "O" ? sides[message.k]?.name : undefined;
               const bookmarked = bookmarks.includes(message.u);
+              const replyIndex = message.r ? uidIndex.get(message.r) : undefined;
+              const replyMessage = replyIndex === undefined ? undefined : allMessages[replyIndex];
 
               const receiptRow =
                 message.s === "LIVE" && side === profile?.side
@@ -614,6 +715,7 @@ function Chat() {
                 <div
                   key={message.u}
                   data-index={item.index}
+                  data-message-uid={message.u}
                   ref={virtualizer.measureElement}
                   style={{
                     position: "absolute",
@@ -629,6 +731,9 @@ function Chat() {
                   <Bubble
                     m={message}
                     side={side}
+                    reply={replyMessage}
+                    replyMissing={!!message.r && !replyMessage}
+                    onReplyClick={message.r ? () => void jumpToReply(message.r!) : undefined}
                     senderName={senderName}
                     sourceLabel={source?.isGroup ? "گروه" : undefined}
                     compactGroupMeta={!!source?.isGroup}

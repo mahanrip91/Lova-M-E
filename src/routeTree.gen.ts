@@ -13,7 +13,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as BookmarksRouteImport } from './routes/bookmarks'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as ExploreRouteImport } from './routes/explore'
-import { Route as ImportRouteImport } from './routes/import'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MemoriesRouteImport } from './routes/memories'
 import { Route as ReplayRouteImport } from './routes/replay'
@@ -42,11 +41,6 @@ const ChatRoute = ChatRouteImport.update({
 const ExploreRoute = ExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ImportRoute = ImportRouteImport.update({
-  id: '/import',
-  path: '/import',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -100,7 +94,6 @@ export interface FileRoutesByFullPath {
   '/bookmarks': typeof BookmarksRoute
   '/chat': typeof ChatRoute
   '/explore': typeof ExploreRoute
-  '/import': typeof ImportRoute
   '/login': typeof LoginRoute
   '/memories': typeof MemoriesRoute
   '/replay': typeof ReplayRoute
@@ -116,7 +109,6 @@ export interface FileRoutesByTo {
   '/bookmarks': typeof BookmarksRoute
   '/chat': typeof ChatRoute
   '/explore': typeof ExploreRoute
-  '/import': typeof ImportRoute
   '/login': typeof LoginRoute
   '/memories': typeof MemoriesRoute
   '/replay': typeof ReplayRoute
@@ -133,7 +125,6 @@ export interface FileRoutesById {
   '/bookmarks': typeof BookmarksRoute
   '/chat': typeof ChatRoute
   '/explore': typeof ExploreRoute
-  '/import': typeof ImportRoute
   '/login': typeof LoginRoute
   '/memories': typeof MemoriesRoute
   '/replay': typeof ReplayRoute
@@ -151,7 +142,6 @@ export interface FileRouteTypes {
     | '/bookmarks'
     | '/chat'
     | '/explore'
-    | '/import'
     | '/login'
     | '/memories'
     | '/replay'
@@ -167,7 +157,6 @@ export interface FileRouteTypes {
     | '/bookmarks'
     | '/chat'
     | '/explore'
-    | '/import'
     | '/login'
     | '/memories'
     | '/replay'
@@ -183,7 +172,6 @@ export interface FileRouteTypes {
     | '/bookmarks'
     | '/chat'
     | '/explore'
-    | '/import'
     | '/login'
     | '/memories'
     | '/replay'
@@ -200,7 +188,6 @@ export interface RootRouteChildren {
   BookmarksRoute: typeof BookmarksRoute
   ChatRoute: typeof ChatRoute
   ExploreRoute: typeof ExploreRoute
-  ImportRoute: typeof ImportRoute
   LoginRoute: typeof LoginRoute
   MemoriesRoute: typeof MemoriesRoute
   ReplayRoute: typeof ReplayRoute
@@ -240,13 +227,6 @@ declare module '@tanstack/react-router' {
       path: '/explore'
       fullPath: '/explore'
       preLoaderRoute: typeof ExploreRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/import': {
-      id: '/import'
-      path: '/import'
-      fullPath: '/import'
-      preLoaderRoute: typeof ImportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -320,7 +300,6 @@ const rootRouteChildren: RootRouteChildren = {
   BookmarksRoute: BookmarksRoute,
   ChatRoute: ChatRoute,
   ExploreRoute: ExploreRoute,
-  ImportRoute: ImportRoute,
   LoginRoute: LoginRoute,
   MemoriesRoute: MemoriesRoute,
   ReplayRoute: ReplayRoute,
