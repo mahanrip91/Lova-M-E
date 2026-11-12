@@ -1,23 +1,23 @@
 {
-  "versionCode": 14,
-  "versionName": "1.1.12",
-  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.12-14/M-AND-E.apk",
-  "apkSizeBytes": 8626910,
-  "apkSha256": "721538d758094acc03b6dd44607d67bced7992034e452aa27fcf4b3d8ade7850",
+  "versionCode": 15,
+  "versionName": "1.1.13",
+  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.13-15/M-AND-E.apk",
+  "apkSizeBytes": 8630614,
+  "apkSha256": "3fd5de9b96b00523dfe21f7be18229a39936a0dbaedc6555f8fcedc1357abb14",
   "releaseNotes": [
-    "اسکرول آرشیو چت روان‌تر و بدون پرش هنگام بارگذاری پیام‌های قدیمی؛ امکان انتخاب عکس دلخواه، تنظیم کادر و بزرگ‌نمایی برای پس‌زمینه؛ ارسال و دریافت تم تصویری با همان روند درخواست و تأیید؛ پرداخت بصری یکپارچه‌تر در کل برنامه."
+    "رفع باگ رفتن از پخش خاطره به تایم‌لاین؛ جلوگیری از اسکرول اشتباه به انتهای چت و هدایت دقیق به پیام مقصد؛ تقویم شمسی اختصاصی برای رفتن به زمان و ثبت خاطره با تبدیل دقیق به زمان میلادی؛ تنظیم افقی و پیش‌نمایش عریض عکس پس‌زمینه با اسکرول خودکار به ویرایشگر؛ افزودن دکمه اعلان آزمایشی واقعی روی گوشی."
   ],
   "updateType": "apk",
   "delta": {
     "algorithm": "bsdiff40",
-    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.12-14/M-AND-E-v1.1.12-14.bsdiff",
-    "fromVersionCode": 13,
-    "fromApkSha256": "4afd31633fb870353e1cd1788e9ce373be84d1e8d0212e9af71b426aa7a79f1f",
-    "patchSizeBytes": 380817,
-    "patchSha256": "cf4d8a3d299b0d24add08526c08c93c53db430f2b9c7701cfe3c129d67b08632",
-    "targetApkSizeBytes": 8626910,
-    "targetApkSha256": "721538d758094acc03b6dd44607d67bced7992034e452aa27fcf4b3d8ade7850"
+    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.13-15/M-AND-E-v1.1.13-15.bsdiff",
+    "fromVersionCode": 14,
+    "fromApkSha256": "721538d758094acc03b6dd44607d67bced7992034e452aa27fcf4b3d8ade7850",
+    "patchSizeBytes": 395907,
+    "patchSha256": "c6a42235dee813512b4a16ef0030eaa9a67de7ce6a3242d167944135156654dc",
+    "targetApkSizeBytes": 8630614,
+    "targetApkSha256": "3fd5de9b96b00523dfe21f7be18229a39936a0dbaedc6555f8fcedc1357abb14"
   },
   "minimumSupportedVersionCode": null,
-  "publishedAt": "2026-11-12T20:44:26.314Z"
+  "publishedAt": "2026-11-12T21:14:17.730Z"
 }
