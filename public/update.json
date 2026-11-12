@@ -1,23 +1,23 @@
 {
-  "versionCode": 11,
-  "versionName": "1.1.9",
-  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.9-11/M-AND-E.apk",
-  "apkSizeBytes": 8621389,
-  "apkSha256": "3e251251c6a453c4944caf0fc234c3652969b05e6b82ae38f8ac6466fd6ce509",
+  "versionCode": 12,
+  "versionName": "1.1.10",
+  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.10-12/M-AND-E.apk",
+  "apkSizeBytes": 8623693,
+  "apkSha256": "5f6266d4e087fe0c0aaf93cd606da7be93efc2af8348bac734bc1242693c8954",
   "releaseNotes": [
-    "بازطراحی صفحه چت با صفحه‌بندی ترتیبی و حفظ جای اسکرول؛ اصلاح رفتن به پیام تایم‌لاین و ریپلای‌ها؛ پخش مستقیم دو خاطره با حفظ پیام‌های گروه و ربات‌ها؛ حذف کامل مدیریت آرشیو و نشان‌های تأیید؛ افزودن خاطرهٔ جدید بدون ویرایش خاطره‌های اصلی؛ انتخاب تاریخ و ساعت برای رفتن به پیام."
+    "بازطراحی نوار چت و وضعیت اتصال؛ انتخاب زمان با پنجره آیکونی؛ اصلاح پرش دقیق به پیام؛ ورود چت با حساب پیش‌فرض ماهان یا الیسا و فقط رمز عبور."
   ],
   "updateType": "apk",
   "delta": {
     "algorithm": "bsdiff40",
-    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.9-11/M-AND-E-v1.1.9-11.bsdiff",
-    "fromVersionCode": 10,
-    "fromApkSha256": "d8e768e330808bc6c97ada5008f9702e2fd949df38cf372ff4c07dab0f4669c1",
-    "patchSizeBytes": 366723,
-    "patchSha256": "cebc82a2ca6a776527b7f05ede765107e3ef81a61ef6e6684059052b59d41922",
-    "targetApkSizeBytes": 8621389,
-    "targetApkSha256": "3e251251c6a453c4944caf0fc234c3652969b05e6b82ae38f8ac6466fd6ce509"
+    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.10-12/M-AND-E-v1.1.10-12.bsdiff",
+    "fromVersionCode": 11,
+    "fromApkSha256": "3e251251c6a453c4944caf0fc234c3652969b05e6b82ae38f8ac6466fd6ce509",
+    "patchSizeBytes": 367490,
+    "patchSha256": "1167e45de6d96c95dca046ffa9e7f3ca8f61798fe61191ad19e85c40302bcc61",
+    "targetApkSizeBytes": 8623693,
+    "targetApkSha256": "5f6266d4e087fe0c0aaf93cd606da7be93efc2af8348bac734bc1242693c8954"
   },
   "minimumSupportedVersionCode": null,
-  "publishedAt": "2026-11-12T19:29:30.439Z"
+  "publishedAt": "2026-11-12T19:55:21.225Z"
 }
