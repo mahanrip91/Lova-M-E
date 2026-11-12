@@ -843,6 +843,156 @@ export async function importFiles(
   return reports;
 }
 
+
+/** Import the curated Assassin's Creed Rubika time-window export into the shared archive. */
+export async function importAssassinsArchiveFile(
+  file: File,
+  onProgress?: (message: string) => void,
+): Promise<{ sourceId: string; count: number }> {
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!auth.user) throw new Error("برای افزودن آرشیو، ابتدا وارد حساب شو.");
+
+  onProgress?.("در حال بررسی فایل آرشیو…");
+  const json = JSON.parse(await file.text()) as {
+    chat_title?: string;
+    chat_guid?: string;
+    date_tehran?: string;
+    time_range_tehran?: string;
+    timezone?: string;
+    complete_scan?: boolean;
+    message_count?: number;
+    messages?: Array<Record<string, any>>;
+  };
+  if (
+    !json ||
+    !Array.isArray(json.messages) ||
+    json.messages.length !== 290 ||
+    json.complete_scan !== true ||
+    json.messages.length !== Number(json.message_count)
+  ) {
+    throw new Error("این فایل، خروجی کامل ۲۹۰ پیامی مورد انتظار نیست.");
+  }
+
+  const sourceId = "rubika_assassins_20260415_0329_0507";
+  const mGuid = "u0IXjOY0628872b21df7782484bd1219";
+  const eGuid = "u0EfdEc0e8d15e21da201f2dae41c2c3";
+  const senderMap = new Map<string, { name: string; side: "M" | "E" | "O"; count: number }>();
+  const messages = json.messages.map((raw, index) => {
+    const authorType = String(raw["author_type"] ?? "User");
+    const isSystem = authorType === "System" || raw["type"] === "Event";
+    const isBot = authorType === "Bot";
+    const guid = String(raw["author_object_guid"] ?? (isSystem ? "group-event" : isBot ? "unknown-bot" : "unknown"));
+    const senderKey = isSystem ? `SYSTEM:${guid}` : isBot ? `BOT:${guid}` : `R:${guid}`;
+    const side: "M" | "E" | "O" =
+      !isSystem && !isBot && guid === mGuid ? "M" :
+      !isSystem && !isBot && guid === eGuid ? "E" : "O";
+    const username = String(raw["author_username"] ?? "");
+    const displayName = isSystem
+      ? "سیستم گروه"
+      : isBot
+        ? (username ? `ربات · ${username}` : "ربات گروه")
+        : side === "M"
+          ? "ماهان · @MAHAN_R_I_P"
+          : side === "E"
+            ? "@Al_00_1387"
+            : (username ? `@${username}` : "عضو گروه");
+    const prior = senderMap.get(senderKey) ?? { name: displayName, side, count: 0 };
+    prior.count += 1;
+    senderMap.set(senderKey, prior);
+
+    const inline = raw["file_inline"] && typeof raw["file_inline"] === "object" ? raw["file_inline"] : null;
+    const type = String(raw["type"] ?? "Text");
+    const kind =
+      isSystem ? "nontext" :
+      type === "Sticker" ? "sticker" :
+      type === "RubinoPost" ? "post" :
+      inline ? ({ Image: "image", Gif: "gif", Video: "video", Voice: "voice", Music: "music", File: "file" } as Record<string, string>)[String(inline.type)] ?? "file" :
+      "text";
+    const metadata = {
+      author_type: authorType,
+      author_username: username,
+      author_object_guid: guid,
+      original_type: type,
+      time_unix: String(raw["time"] ?? ""),
+      allow_transcription: Boolean(raw["allow_transcription"]),
+      file_inline: inline ? {
+        type: inline.type ?? null,
+        file_name: inline.file_name ?? null,
+        size: inline.size ?? null,
+        duration: inline.duration ?? null,
+        mime_type: inline.mime_type ?? null,
+      } : null,
+    };
+    return {
+      uid: `${sourceId}:${String(raw["message_id"] ?? index)}`,
+      source_id: sourceId,
+      original_id: String(raw["message_id"] ?? ""),
+      occurred_at: new Date(Number(raw["time"]) * 1000).toISOString(),
+      sender_key: senderKey,
+      sender_side: side,
+      body: typeof raw["text"] === "string" ? raw["text"] : "",
+      kind,
+      original_order: index,
+      reply_uid: raw["reply_to_message_id"] ? `${sourceId}:${String(raw["reply_to_message_id"])}` : null,
+      media_label: inline?.file_name ? String(inline.file_name).slice(0, 180) : raw["sticker"]?.emoji_character ? String(raw["sticker"].emoji_character) : null,
+      is_edited: Boolean(raw["is_edited"]),
+      is_forwarded: Boolean(raw["forwarded_from"] || raw["forwarded_no_link"]),
+      metadata,
+    };
+  });
+
+  const times = messages.map((m) => Date.parse(m.occurred_at));
+  const fromAt = new Date(Math.min(...times)).toISOString();
+  const toAt = new Date(Math.max(...times)).toISOString();
+  const source = {
+    id: sourceId,
+    platform: "rubika",
+    label: `${json.chat_title || "Assassin's Creed"} · ${json.date_tehran || "۲۶ فروردین ۱۴۰۵"} · ${json.time_range_tehran || "۰۳:۲۹–۰۵:۰۷"}`,
+    file_name: file.name,
+    is_group: true,
+    message_count: messages.length,
+    from_at: fromAt,
+    to_at: toAt,
+    metadata: {
+      chat_guid: json.chat_guid ?? null,
+      date_tehran: json.date_tehran ?? null,
+      time_range_tehran: json.time_range_tehran ?? null,
+      timezone: json.timezone ?? "Asia/Tehran",
+      complete_scan: true,
+      scanned_messages_in_time_window: json.message_count,
+      imported_by: auth.user.id,
+    },
+  };
+
+  onProgress?.("در حال ثبت منبع و فرستنده‌ها…");
+  const { error: sourceError } = await supabase.from("archive_sources").upsert(source, { onConflict: "id" });
+  if (sourceError) throw sourceError;
+
+  const senderRows = [...senderMap.entries()].map(([sender_key, sender]) => ({
+    source_id: sourceId,
+    sender_key,
+    display_name: sender.name,
+    side: sender.side,
+    confirmed: sender.side === "M" || sender.side === "E",
+    guess_reason: sender.side === "M" || sender.side === "E" ? "شناسهٔ فرستنده از آرشیو تأیید شد" : "عضو، ربات یا رویداد گروه",
+    message_count: sender.count,
+  }));
+  const { error: senderError } = await supabase.from("archive_senders").upsert(senderRows, { onConflict: "source_id,sender_key" });
+  if (senderError) throw senderError;
+
+  onProgress?.("در حال انتقال ۲۹۰ پیام به آرشیو مرکزی…");
+  for (let offset = 0; offset < messages.length; offset += 100) {
+    const { error } = await supabase.from("archive_messages").upsert(messages.slice(offset, offset + 100), { onConflict: "uid" });
+    if (error) throw error;
+    onProgress?.(`انتقال پیام‌ها… ${Math.min(offset + 100, messages.length)} از ${messages.length}`);
+  }
+
+  remoteSynced = false;
+  await syncRemoteArchive();
+  return { sourceId, count: messages.length };
+}
+
 export async function setSide(key: string, side: Side) {
   const sides = {
     ...state.sides,
