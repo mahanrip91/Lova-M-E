@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Cake, Dices, Gift, Heart, Sparkles, History, PartyPopper, Plus } from "lucide-react";
+import { Cake, Dices, Gift, Heart, Sparkles, History, PartyPopper } from "lucide-react";
 import { useStore, type EventKind } from "@/lib/mae/store";
 import { LiveCounter } from "@/components/mae/Counter";
 import { fa, fmtDate, fmtDateTime, fmtTime } from "@/lib/mae/time";
@@ -38,8 +38,8 @@ function Home() {
 
   const sources = useStore((s) => s.sources);
   const firstSrc = sources.find((x) => x.id === settings.firstSourceId) ?? null;
-  const began = settings.beganFrom && settings.beganTo && settings.beganSourceId
-    ? { from: settings.beganFrom, to: settings.beganTo, src: settings.beganSourceId }
+  const began = settings.beganFrom && settings.beganTo
+    ? { from: settings.beganFrom, to: settings.beganTo }
     : null;
 
   const randomMemory = () => {
@@ -110,25 +110,11 @@ function Home() {
             </div>
           ) : (
             <>
-              <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-2xl bg-mahan/10 p-3">
-                  <div className="text-muted-foreground">پیام‌های ماهان</div>
-                  <div className="mt-1 font-bold">{fa(firstSrc.senders.find((x) => x.guess === "M")?.count ?? 0)}</div>
-                </div>
-                <div className="rounded-2xl bg-elisa/10 p-3">
-                  <div className="text-muted-foreground">پیام‌های الیسا</div>
-                  <div className="mt-1 font-bold">{fa(firstSrc.senders.find((x) => x.guess === "E")?.count ?? 0)}</div>
-                </div>
-                <div className="rounded-2xl bg-background/55 p-3">
-                  <div className="text-muted-foreground">ربات‌ها</div>
-                  <div className="mt-1 font-bold">{fa(firstSrc.senders.filter((x) => x.name.includes("ربات")).reduce((n, x) => n + x.count, 0))}</div>
-                </div>
-                <div className="rounded-2xl bg-background/55 p-3">
-                  <div className="text-muted-foreground">رویدادهای گروه</div>
-                  <div className="mt-1 font-bold">{fa(firstSrc.senders.filter((x) => x.name.includes("سیستم")).reduce((n, x) => n + x.count, 0))}</div>
-                </div>
+              <div className="mt-4 rounded-2xl bg-love/10 p-4">
+                <div className="text-xs text-muted-foreground">پیام‌های ماهان و الیسا</div>
+                <div className="mt-1 font-display text-3xl text-love">{fa(settings.beganCount ?? 282)}</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">فقط پیام‌های دو نفر؛ بدون ربات‌ها و رویدادهای گروه</div>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">مجموع: {fa(firstSrc.count)} پیام · همهٔ پیام‌ها از آرشیو کامل گروه</p>
               <p className="mt-3 text-xs text-muted-foreground">
                 منبع: {firstSrc.label} · پوشش آرشیو: {fmtDateTime(firstSrc.from)} تا{" "}
                 {fmtDateTime(firstSrc.to)}
@@ -142,7 +128,6 @@ function Home() {
               to: settings.firstTo,
               title: "روز اول ما",
               kind: "first",
-              src: firstSrc?.id,
             }}
             disabled={!firstSrc}
             className="mt-5 inline-flex items-center gap-2 rounded-full bg-love px-6 py-2.5 font-bold text-primary-foreground shadow-lg aria-disabled:opacity-40"
@@ -160,12 +145,12 @@ function Home() {
       <div className="grid gap-3 sm:grid-cols-2">
         <MemoryCard
           title="چطور شروع شد"
-          sub={began ? `${fmtDateTime(began.from)} تا ${fmtDateTime(began.to)} · ${fa(settings.beganCount ?? 18)} پیام در سه گفتگوی نخست خصوصی` : "بعد از وارد کردن آرشیو"}
+          sub={began ? `${fmtDateTime(began.from)} تا ${fmtDateTime(began.to)} · ${fa(settings.beganCount ?? 282)} پیام ماهان و الیسا` : "آرشیو در دسترس نیست"}
           icon={History}
           badge="تأییدشده از آرشیو"
           to={
             began
-              ? { from: began.from, to: began.to, title: "چطور شروع شد", kind: "began", src: began.src }
+              ? { from: began.from, to: began.to, title: "چطور شروع شد", kind: "began" }
               : undefined
           }
         />
@@ -225,12 +210,9 @@ function Home() {
               to={{ from: e.from, to: e.to, title: e.title, kind: "custom" }}
             />
           ))}
-        <Link
-          to="/memories"
-          className="flex items-center justify-center gap-2 rounded-3xl border border-dashed border-border p-4 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <Plus className="size-4" /> تنظیم تاریخ‌ها و افزودن خاطره
-        </Link>
+        <div className="rounded-3xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+          تاریخ‌ها و بازه‌های خاطره از آرشیو اصلی ثبت شده‌اند و قابل ویرایش نیستند.
+        </div>
       </div>
 
       <p className="mt-6 pb-4 text-center text-[11px] text-muted-foreground">
@@ -280,9 +262,5 @@ function MemoryCard({
         {inner}
       </Link>
     );
-  return (
-    <Link to="/memories" className={cls}>
-      {inner}
-    </Link>
-  );
+  return <div className={cls}>{inner}</div>;
 }

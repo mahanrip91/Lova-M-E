@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { elapsedJalali, fa, fmtDateTime } from "@/lib/mae/time";
 import { useStore } from "@/lib/mae/store";
-import { Link } from "@tanstack/react-router";
-import { Pencil } from "lucide-react";
 
 function Unit({ v, label }: { v: number; label: string }) {
   return (
@@ -31,9 +29,6 @@ export function LiveCounter() {
           <h2 id="counter-title" className="font-display text-2xl">چند وقته با همیم؟</h2>
           <p className="mt-1 text-xs text-muted-foreground">از تاریخ شروعِ تأییدشده ({fmtDateTime(start)}) تا همین الان، به وقت تهران</p>
         </div>
-        <Link to="/memories" className="rounded-full p-2 text-muted-foreground hover:text-foreground" aria-label="ویرایش تاریخ شروع">
-          <Pencil className="size-4" />
-        </Link>
       </div>
       {e ? (
         <>

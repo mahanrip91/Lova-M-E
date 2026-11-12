@@ -313,13 +313,17 @@ function Chat() {
     const targetIndex = messages.findIndex((message) => message.u === targetUid);
 
     if (targetIndex >= 0) {
+      virtualizer.measure();
       const frame1 = window.requestAnimationFrame(() => {
-        virtualizer.scrollToIndex(targetIndex, { align: "center" });
+        virtualizer.scrollToIndex(targetIndex, { align: "center", behavior: "auto" });
         window.requestAnimationFrame(() => {
-          virtualizer.scrollToIndex(targetIndex, { align: "center" });
+          virtualizer.scrollToIndex(targetIndex, { align: "center", behavior: "auto" });
+          window.requestAnimationFrame(() => {
+            const target = scrollRef.current?.querySelector<HTMLElement>(`[data-index="${targetIndex}"]`);
+            target?.scrollIntoView({ block: "center", behavior: "smooth" });
+          });
         });
       });
-
       return () => window.cancelAnimationFrame(frame1);
     }
 
@@ -501,10 +505,11 @@ function Chat() {
                   ? `آخرین بازدید ${new Date(peerLastSeen).toLocaleDateString("fa-IR", {
                       month: "numeric",
                       day: "numeric",
-                    })}`
+                      timeZone: "Asia/Tehran",
+                    })} · ${new Date(peerLastSeen).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Tehran" })}`
                   : "وضعیت نامشخص"}
               {" · "}
-              {messages.length.toLocaleString("fa-IR")} پیام
+              {sources.reduce((total, source) => total + source.count, 0).toLocaleString("fa-IR")} پیام
             </p>
           </div>
         </div>
@@ -625,7 +630,8 @@ function Chat() {
                     m={message}
                     side={side}
                     senderName={senderName}
-                    sourceLabel={source?.label}
+                    sourceLabel={source?.isGroup ? "گروه" : undefined}
+                    compactGroupMeta={!!source?.isGroup}
                     bookmarked={bookmarked}
                     onBookmark={() => void toggleBookmark(message.u)}
                     canEdit={message.s === "LIVE" && side === profile?.side}

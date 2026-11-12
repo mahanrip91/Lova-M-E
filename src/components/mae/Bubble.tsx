@@ -276,6 +276,7 @@ export interface BubbleProps {
   side?: "M" | "E" | "O" | undefined;
   senderName?: string | undefined;
   sourceLabel?: string | undefined;
+  compactGroupMeta?: boolean | undefined;
   reply?: Msg | null | undefined;
   replyMissing?: boolean | undefined;
   bookmarked?: boolean | undefined;
@@ -297,6 +298,7 @@ export const Bubble = memo(function Bubble({
   side,
   senderName,
   sourceLabel,
+  compactGroupMeta,
   reply,
   replyMissing,
   bookmarked,
@@ -576,14 +578,12 @@ export const Bubble = memo(function Bubble({
         </div>
 
         <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
-          {pinned && <Pin className="size-3 text-primary" aria-label="پیام سنجاق‌شده" />}
-          {m.f && <Forward className="size-3" aria-label="فوروارد" />}
-          {m.e && <Pencil className="size-3" aria-label="ویرایش‌شده" />}
-          {sourceLabel && (
-            <span className="rounded-full bg-background/50 px-1.5">{sourceLabel}</span>
-          )}
+          {!compactGroupMeta && pinned && <Pin className="size-3 text-primary" aria-label="پیام سنجاق‌شده" />}
+          {!compactGroupMeta && m.f && <Forward className="size-3" aria-label="فوروارد" />}
+          {!compactGroupMeta && m.e && <Pencil className="size-3" aria-label="ویرایش‌شده" />}
           <span>{fmtTime(m.t)}</span>
-          {receipt && m.s === "LIVE" && mine && (
+          {sourceLabel && <span>{sourceLabel}</span>}
+          {!compactGroupMeta && receipt && m.s === "LIVE" && mine && (
             <span
               title={
                 receipt === "read"
@@ -608,7 +608,7 @@ export const Bubble = memo(function Bubble({
               )}
             </span>
           )}
-          {onBookmark && (
+          {!compactGroupMeta && onBookmark && (
             <button
               type="button"
               onClick={onBookmark}

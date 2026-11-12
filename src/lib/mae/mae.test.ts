@@ -60,12 +60,13 @@ describe("first conversation across midnight", () => {
     expect(segs[0]!.messages).toHaveLength(2);
     expect(segs[1]!.messages).toHaveLength(4);
   });
-  it("missing pre-midnight part yields an empty segment, never invented messages", () => {
-    const only = [mk(tehranToUtc(2026, 4, 15, 3, 28), 0), mk(tehranToUtc(2026, 4, 15, 3, 29), 1)];
+  it("first-day memories start at the first private message after midnight", () => {
+    const only = [mk(tehranToUtc(2026, 4, 15, 3, 28, 36), 0), mk(tehranToUtc(2026, 4, 15, 3, 29), 1)];
     const { firstFrom: from, firstTo: to } = defaultSettings();
     const segs = splitAtMidnight(from, to, sliceRange(only, from, to));
-    expect(segs[0]!.messages).toHaveLength(0);
-    expect(segs[1]!.messages).toHaveLength(2);
+    expect(segs).toHaveLength(1);
+    expect(segs[0]!.day).toBe("2026-04-15");
+    expect(segs[0]!.messages).toHaveLength(2);
   });
   it("respects a user-edited range", () => {
     expect(sliceRange(msgs, base + 15 * 60000, base + 35 * 60000).map((m) => m.o)).toEqual([2, 3]);

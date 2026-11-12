@@ -76,17 +76,16 @@ export interface Settings {
 
 export const DEFAULT_START = jalaliToUtc(1405, 1, 26, 3, 28, 0); // user-confirmed: 26 Farvardin 1405, 03:28 Tehran
 const OLD_DEFAULT_START = jalaliToUtc(1405, 1, 26, 0, 0, 0);
-const FIRST_MIDNIGHT = jalaliToUtc(1405, 1, 26, 0, 0, 0);
 export const defaultSettings = (): Settings => ({
   startMs: DEFAULT_START,
   startConfirmed: true,
-  firstSourceId: null,
-  firstFrom: FIRST_MIDNIGHT - 3 * 3600000,
-  firstTo: FIRST_MIDNIGHT + 6 * 3600000,
+  firstSourceId: "rubika_assassins_20260415_0329_0507",
+  firstFrom: Date.parse("2026-04-14T23:58:36.000Z"),
+  firstTo: Date.parse("2026-04-15T01:37:00.000Z"),
   beganFrom: Date.parse("2026-04-14T23:58:36.000Z"),
-  beganTo: Date.parse("2026-04-15T22:07:17.000Z"),
-  beganSourceId: "rubika_private_main",
-  beganCount: 18,
+  beganTo: Date.parse("2026-04-15T01:37:00.000Z"),
+  beganSourceId: null,
+  beganCount: 282,
 });
 
 const HOUR = 3600000;

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FastForward, Pause, Play, Rewind, SkipBack, SkipForward, Moon, Info } from "lucide-react";
 import { useStore, getState, ensureArchiveRange } from "@/lib/mae/store";
 import { sliceRange, splitAtMidnight } from "@/lib/mae/analysis";
-import { dayKey, dayStartMs, fa, fmtDate, fmtDateTime, fmtDuration, fmtTime } from "@/lib/mae/time";
+import { dayKey, fa, fmtDate, fmtDateTime, fmtDuration, fmtTime } from "@/lib/mae/time";
 import { Bubble, DayDivider } from "@/components/mae/Bubble";
 
 interface Search { from: number; to: number; title?: string | undefined; kind?: string | undefined; src?: string | undefined }
@@ -38,7 +38,14 @@ function Replay() {
   const all = useStore((s) => s.messages);
   const sources = useStore((s) => s.sources);
   const sides = useStore((s) => s.sides);
-  const msgs = useMemo(() => { if (kind === "first" && !src) return []; const r = sliceRange(all, from, to); return src ? r.filter((m) => m.s === src) : r; }, [all, from, to, src, kind]);
+  const msgs = useMemo(() => {
+    const ranged = sliceRange(all, from, to);
+    if (kind === "first" || kind === "began") return ranged.filter((m) => {
+      const side = sides[m.k]?.side;
+      return side === "M" || side === "E";
+    });
+    return src ? ranged.filter((m) => m.s === src) : ranged;
+  }, [all, from, to, src, kind, sides]);
   const segments = useMemo(() => splitAtMidnight(from, to, msgs), [from, to, msgs]);
   const [phase, setPhase] = useState<"intro" | "play">("intro");
   const [idx, setIdx] = useState(0);
@@ -94,8 +101,7 @@ function Replay() {
   const firstSide = first ? sides[first.k]?.side : undefined;
   const srcSet = [...new Set(msgs.map((m) => srcLabel[m.s]))];
   const multiDay = segments.length > 1;
-  const midnight = dayStartMs(dayKey(to));
-  const preMidnightEmpty = kind === "first" && msgs.every((m) => m.t >= midnight);
+  const preMidnightEmpty = false;
   const missingSource = (kind === "first" && !src) || (!!src && !sources.some((x) => x.id === src));
 
   const windowStart = Math.max(0, idx - 120);
@@ -179,7 +185,7 @@ function Replay() {
           <Info className="size-4 shrink-0 text-gold" />
           <span>
             بازه‌ی این خاطره: {fmtDateTime(from)} تا {fmtDateTime(to)}. {preMidnightEmpty ? "برای پیش از نیمه‌شب پیامی در آرشیو نیست؛ چیزی ساخته نمی‌شود." : ""}{" "}
-            <Link to="/memories" className="text-primary underline">ویرایش بازه</Link>
+            <span>این بازه از نخستین پیام خصوصی تا پایان گفتگوی گروهی ثبت شده است.</span>
           </span>
         </div>
       )}
