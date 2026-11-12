@@ -1,23 +1,23 @@
 {
-  "versionCode": 8,
-  "versionName": "1.1.6",
-  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.6-8/M-AND-E.apk",
-  "apkSizeBytes": 8628592,
-  "apkSha256": "eb52d3e6a78f02ae265e3f6c4180d0ec38ba21d8e4bfa6dfe17f396546e1c6d7",
+  "versionCode": 9,
+  "versionName": "1.1.7",
+  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.7-9/M-AND-E.apk",
+  "apkSizeBytes": 8629388,
+  "apkSha256": "3821092b9ab77adbb8bff0331b3895c081b5da5f784fae28f60630bf61aeac3f",
   "releaseNotes": [
-    "افزودن آرشیو ویژه Assassin’s Creed؛ واردکردن امن ۲۹۰ پیام گروه روبیکا با زمان دقیق، فرستنده‌ها، ربات‌ها و رویدادهای سیستمی."
+    "آرشیو کامل Assassin’s Creed روی Supabase؛ ۲۹۰ پیام گروه با فرستنده‌ها، ربات‌ها، رویدادها و فرادادهٔ پیوست‌ها. بازپخش «روز اول ما» و «چطور شروع شد» با تنظیمات و خاطره‌های همگام‌شده بین دستگاه‌ها."
   ],
   "updateType": "apk",
   "delta": {
     "algorithm": "bsdiff40",
-    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.6-8/M-AND-E-v1.1.6-8.bsdiff",
-    "fromVersionCode": 7,
-    "fromApkSha256": "f71f557536ac1889b9d03a714efe2fca1de421ff1c365144ea4e9dd3d56fb62d",
-    "patchSizeBytes": 369232,
-    "patchSha256": "53db3077a4c6131049652d43d9fcb1dfa06867e12ced04a6e841a936f0c5395e",
-    "targetApkSizeBytes": 8628592,
-    "targetApkSha256": "eb52d3e6a78f02ae265e3f6c4180d0ec38ba21d8e4bfa6dfe17f396546e1c6d7"
+    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.7-9/M-AND-E-v1.1.7-9.bsdiff",
+    "fromVersionCode": 8,
+    "fromApkSha256": "eb52d3e6a78f02ae265e3f6c4180d0ec38ba21d8e4bfa6dfe17f396546e1c6d7",
+    "patchSizeBytes": 356296,
+    "patchSha256": "82e0761ab0cae494e45fea1dbd50009556aa57e39d9e55312c3cf09eec20aae3",
+    "targetApkSizeBytes": 8629388,
+    "targetApkSha256": "3821092b9ab77adbb8bff0331b3895c081b5da5f784fae28f60630bf61aeac3f"
   },
   "minimumSupportedVersionCode": null,
-  "publishedAt": "2026-11-12T17:40:24.856Z"
+  "publishedAt": "2026-11-12T18:15:58.165Z"
 }
