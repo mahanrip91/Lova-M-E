@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const manifestPath = process.argv[2] ?? "public/update.json";
 const signaturePath = process.argv[3] ?? "public/update.json.sig";
-const keyPath = process.env.MAE_UPDATE_SIGNING_KEY ?? ".ota-private-key.pem";
+const keyPath = process.env.MAE_UPDATE_SIGNING_KEY ?? ".mae-update-private-key.pem";
 
 const raw = readFileSync(manifestPath);
 const privateKey = readFileSync(keyPath);

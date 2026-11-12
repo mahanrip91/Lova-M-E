@@ -41,6 +41,9 @@ if (autoBuild && versionCode <= Number(previousManifest.versionCode || 0)) {
 }
 if (autoBuild) {
   run("npm", ["run", "build:app"]);
+  // Copy the freshly built www/ output into android/app/src/main/assets/public.
+  // Without this, Gradle can package stale web chunks from a previous build.
+  run("npx", ["cap", "copy", "android"]);
   run("bash", ["android/gradlew", "-p", "android", "assembleDebug", "--no-daemon"]);
 }
 if (!value("apk") && !args.includes("--no-build")) {
@@ -54,7 +57,7 @@ if (!value("apk") && !args.includes("--no-build")) {
 const tag = value("tag") || `v${versionName}-${versionCode}`;
 const apk = path.resolve(value("apk") || "android/app/build/outputs/apk/debug/app-debug.apk");
 let base = value("base") ? path.resolve(value("base")) : null;
-const notes = value("notes") || "به‌روزرسانی هوشمند M AND E؛ بهبود پایداری و نصب امن.";
+const notes = value("notes") || "حذف مسیر به‌روزرسانی وب؛ یکپارچه‌سازی به‌روزرسانی امن APK و اصلاح پچ کم‌حجم.";
 if (!existsSync(apk)) throw new Error(`APK not found: ${apk}`);
 if (base && !existsSync(base)) throw new Error(`Base APK not found: ${base}`);
 if (!base) {
@@ -65,7 +68,7 @@ if (!base) {
       const baseDir = path.resolve("dist/updates/base");
       mkdirSync(baseDir, { recursive: true });
       try {
-        run("gh", ["release", "download", release.tagName, "--repo", "mahanrip91/Lova-M-E", "--pattern", "M-AND-E.apk", "--dir", baseDir]);
+        run("gh", ["release", "download", release.tagName, "--repo", "mahanrip91/Lova-M-E", "--pattern", "M-AND-E.apk", "--dir", baseDir, "--clobber"]);
         base = path.join(baseDir, "M-AND-E.apk");
         console.log("Using previous release APK as delta base: " + release.tagName);
       } catch (error) {

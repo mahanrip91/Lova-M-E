@@ -194,7 +194,7 @@ public class NativeToolsPlugin extends Plugin {
         new Thread(() -> {
             try {
                 UpdateInstaller.Result prepared = UpdateInstaller.prepare(ctx);
-                getActivity().runOnUiThread(() -> openInstaller(prepared.apk, true, prepared.method));
+                getActivity().runOnUiThread(() -> openInstaller(prepared.apk, true, prepared.method, prepared.fallbackReason));
             } catch (Exception e) {
                 getActivity().runOnUiThread(() ->
                     finish(null, e.getMessage() == null ? "به‌روزرسانی ناموفق بود." : e.getMessage(), "UPDATE_FAILED"));
@@ -238,6 +238,10 @@ public class NativeToolsPlugin extends Plugin {
     }
 
     private void openInstaller(File apk, boolean verified, String method) {
+        openInstaller(apk, verified, method, null);
+    }
+
+    private void openInstaller(File apk, boolean verified, String method, String fallbackReason) {
         try {
             Context ctx = getContext();
             Uri uri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", apk);
@@ -249,6 +253,9 @@ public class NativeToolsPlugin extends Plugin {
             r.put("status", "installer_opened");
             r.put("verified", verified);
             r.put("method", method);
+            if (fallbackReason != null && !fallbackReason.trim().isEmpty()) {
+                r.put("fallbackReason", fallbackReason);
+            }
             finish(r, null, null);
         } catch (Exception e) {
             finish(null, "باز کردن نصب‌کنندهٔ اندروید ممکن نشد.", "INSTALLER");

@@ -1,8 +1,6 @@
 /**
  * Public APK update manifest (public/update.json).
- * Only updateType "apk" is supported. OTA web-bundle updates are intentionally
- * NOT implemented: a future "web" type must add signature verification and a
- * non-destructive bundle swap that never touches IndexedDB, caches or archives.
+ * Only signed Android APK updates are supported.
  */
 export const UPDATE_MANIFEST_URL =
   "https://raw.githubusercontent.com/mahanrip91/Lova-M-E/main/public/update.json";

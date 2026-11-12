@@ -16,7 +16,7 @@ type NativeTools = {
   getAppInfo(): Promise<{ version: string; versionCode?: number; platform: string }>;
   getUpdateNotificationStatus(): Promise<{ permission: string; enabled: boolean }>;
   requestUpdateNotificationPermission(): Promise<{ permission: string; enabled: boolean }>;
-  downloadSmartAndInstall(): Promise<{ status: string; verified: boolean; method: "delta" | "full" }>;
+  downloadSmartAndInstall(): Promise<{ status: string; verified: boolean; method: "delta" | "full"; fallbackReason?: string }>;
 };
 
 const Native = registerPlugin<NativeTools>("NativeTools");
@@ -185,7 +185,9 @@ function SettingsPage() {
       const r = await Native.downloadSmartAndInstall();
       setMessage(r.method === "delta"
         ? "پچ کم‌حجم اعمال و APK جدید بازسازی و بررسی شد؛ نصب را در پنجرهٔ اندروید تأیید کن."
-        : "APK کامل دریافت و بررسی شد؛ نصب را در پنجرهٔ اندروید تأیید کن.");
+        : r.fallbackReason
+          ? `پچ قابل اعمال نبود: ${r.fallbackReason} فایل کامل دریافت و بررسی شد؛ نصب را در پنجرهٔ اندروید تأیید کن.`
+          : "APK کامل دریافت و بررسی شد؛ نصب را در پنجرهٔ اندروید تأیید کن.");
     } catch (e) {
       setMessage(e instanceof Error && e.message ? e.message : "به‌روزرسانی ناموفق بود.");
     } finally {

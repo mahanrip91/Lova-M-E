@@ -30,7 +30,12 @@ final class UpdateInstaller {
     static final class Result {
         final File apk;
         final String method;
-        Result(File apk, String method) { this.apk = apk; this.method = method; }
+        final String fallbackReason;
+        Result(File apk, String method, String fallbackReason) {
+            this.apk = apk;
+            this.method = method;
+            this.fallbackReason = fallbackReason;
+        }
     }
 
     private UpdateInstaller() {}
@@ -57,6 +62,7 @@ final class UpdateInstaller {
         if (!tempDir.exists() && !tempDir.mkdirs()) throw new IllegalStateException("ساخت پوشهٔ موقت ممکن نشد.");
 
         JSONObject delta = manifest.optJSONObject("delta");
+        String fallbackReason = null;
         if (delta != null) {
             File patch = new File(tempDir, "update.bsdiff");
             File rebuilt = new File(tempDir, "rebuilt.apk");
@@ -79,8 +85,12 @@ final class UpdateInstaller {
                 if (!sha256(rebuilt).equals(apkHash)) throw new SecurityException("خروجی پچ با APK منتشرشده یکی نیست.");
                 validateApk(context, rebuilt, targetCode, targetName, installed);
                 copyFile(rebuilt, finalApk);
-                return new Result(finalApk, "delta");
+                return new Result(finalApk, "delta", null);
             } catch (Exception deltaFailure) {
+                fallbackReason = deltaFailure.getMessage() == null
+                    ? deltaFailure.getClass().getSimpleName()
+                    : deltaFailure.getMessage();
+                android.util.Log.w("MAE-UPDATE", "Delta patch failed; using verified full APK: " + fallbackReason, deltaFailure);
                 // Delta is an optimization only. A verified full APK is the safe fallback.
                 //noinspection ResultOfMethodCallIgnored
                 patch.delete();
@@ -98,7 +108,7 @@ final class UpdateInstaller {
             finalApk.delete();
             throw invalid;
         }
-        return new Result(finalApk, "full");
+        return new Result(finalApk, "full", fallbackReason);
     }
 
     private static JSONObject fetchVerifiedManifest() throws Exception {

@@ -53,5 +53,5 @@ ios/
 !.env.example
 
 src/lib/native-gate.generated.ts
-.ota-private-key.pem
-ota-out/
+.mae-update-private-key.pem
+update-out/

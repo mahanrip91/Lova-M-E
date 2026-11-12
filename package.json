@@ -16,8 +16,6 @@
     "cap:sync": "npm run build:app && npx cap sync android",
     "cap:open": "npx cap open android",
     "cap:run": "npm run cap:sync && npx cap run android",
-    "ota:keygen": "node scripts/ota-keygen.mjs",
-    "ota:build": "node scripts/build-ota.mjs",
     "update:sign": "node scripts/sign-update-manifest.mjs",
     "update:delta": "python scripts/build-delta.py",
     "release:android": "node scripts/release-android.mjs"
