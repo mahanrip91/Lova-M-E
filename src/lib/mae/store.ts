@@ -1,5 +1,5 @@
 import type { ChatMessage, Profile } from "@/lib/chat/types";
-// On-device store. All chat data lives only in this browser's IndexedDB.
+// Offline-first local cache; the canonical archive and shared memory settings live in Supabase.
 import { useSyncExternalStore } from "react";
 import { get, set, del } from "idb-keyval";
 import { supabase } from "@/lib/supabase";
@@ -65,8 +65,13 @@ export interface Settings {
   firstFrom: number;
   firstTo: number;
   startConfirmed: boolean;
-  /** source holding the first night (a group chat); null until the user picks it */ firstSourceId:
-    string | null;
+  /** source holding the first-day group archive */
+  firstSourceId: string | null;
+  /** First three confirmed private-chat sessions, shared across devices. */
+  beganFrom?: number;
+  beganTo?: number;
+  beganSourceId?: string | null;
+  beganCount?: number;
 }
 
 export const DEFAULT_START = jalaliToUtc(1405, 1, 26, 3, 28, 0); // user-confirmed: 26 Farvardin 1405, 03:28 Tehran
@@ -78,6 +83,10 @@ export const defaultSettings = (): Settings => ({
   firstSourceId: null,
   firstFrom: FIRST_MIDNIGHT - 3 * 3600000,
   firstTo: FIRST_MIDNIGHT + 6 * 3600000,
+  beganFrom: Date.parse("2026-04-14T23:58:36.000Z"),
+  beganTo: Date.parse("2026-04-15T22:07:17.000Z"),
+  beganSourceId: "rubika_private_main",
+  beganCount: 18,
 });
 
 const HOUR = 3600000;
@@ -218,6 +227,7 @@ async function syncRemoteArchive() {
     { data: sourceRows, error: sourceError },
     { data: senderRows, error: senderError },
     { data: profiles, error: profileError },
+    { data: sharedState, error: sharedStateError },
   ] = await Promise.all([
     supabase
       .from("archive_sources")
@@ -227,11 +237,13 @@ async function syncRemoteArchive() {
       .from("archive_senders")
       .select("source_id,sender_key,display_name,side,confirmed,guess_reason,message_count"),
     supabase.from("profiles").select("id,display_name,side"),
+    supabase.from("mae_shared_state").select("settings,events").eq("id", "main").maybeSingle(),
   ]);
 
   if (sourceError) throw sourceError;
   if (senderError) throw senderError;
   if (profileError) throw profileError;
+  if (sharedStateError) throw sharedStateError;
 
   const sources = (sourceRows ?? []).map((r) => ({
     id: r.id,
@@ -395,9 +407,13 @@ async function syncRemoteArchive() {
     get<MemoryEvent[]>("mae:events"),
     get<Settings>("mae:settings"),
   ]);
-  const p = applyPresets(savedEvents ?? state.events, {
+  const mergedEvents = new Map<string, MemoryEvent>();
+  for (const event of savedEvents ?? state.events) mergedEvents.set(event.id, event);
+  for (const event of (Array.isArray(sharedState?.events) ? sharedState.events : []) as MemoryEvent[]) mergedEvents.set(event.id, event);
+  const p = applyPresets([...mergedEvents.values()], {
     ...defaultSettings(),
     ...(savedSettings ?? state.settings),
+    ...((sharedState?.settings && typeof sharedState.settings === "object") ? sharedState.settings as Partial<Settings> : {}),
   });
   await Promise.all([
     set("mae:messages", allMessages),
@@ -418,6 +434,7 @@ async function syncRemoteArchive() {
     archiveDays,
     ...derive(allMessages, sides),
   });
+  await persistSharedState(p.settings, p.events);
   remoteSynced = true;
   return true;
 }
@@ -875,6 +892,12 @@ export async function importAssassinsArchiveFile(
   }
 
   const sourceId = "rubika_assassins_20260415_0329_0507";
+  const sanitizeArchiveValue = (value: unknown): unknown => {
+    if (typeof value === "string") return value.replace(/\u0000/g, "\uFFFD");
+    if (Array.isArray(value)) return value.map(sanitizeArchiveValue);
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeArchiveValue(item)]));
+    return value;
+  };
   const mGuid = "u0IXjOY0628872b21df7782484bd1219";
   const eGuid = "u0EfdEc0e8d15e21da201f2dae41c2c3";
   const senderMap = new Map<string, { name: string; side: "M" | "E" | "O"; count: number }>();
@@ -904,25 +927,20 @@ export async function importAssassinsArchiveFile(
     const inline = raw["file_inline"] && typeof raw["file_inline"] === "object" ? raw["file_inline"] : null;
     const type = String(raw["type"] ?? "Text");
     const kind =
-      isSystem ? "nontext" :
+      isSystem ? "text" :
       type === "Sticker" ? "sticker" :
       type === "RubinoPost" ? "post" :
       inline ? ({ Image: "image", Gif: "gif", Video: "video", Voice: "voice", Music: "music", File: "file" } as Record<string, string>)[String(inline.type)] ?? "file" :
       "text";
-    const metadata = {
+    const metadata: Record<string, unknown> = {
+      raw_message: sanitizeArchiveValue(raw),
       author_type: authorType,
       author_username: username,
       author_object_guid: guid,
       original_type: type,
       time_unix: String(raw["time"] ?? ""),
       allow_transcription: Boolean(raw["allow_transcription"]),
-      file_inline: inline ? {
-        type: inline.type ?? null,
-        file_name: inline.file_name ?? null,
-        size: inline.size ?? null,
-        duration: inline.duration ?? null,
-        mime_type: inline.mime_type ?? null,
-      } : null,
+      file_inline: inline ? sanitizeArchiveValue(inline) : null,
     };
     return {
       uid: `${sourceId}:${String(raw["message_id"] ?? index)}`,
@@ -931,7 +949,7 @@ export async function importAssassinsArchiveFile(
       occurred_at: new Date(Number(raw["time"]) * 1000).toISOString(),
       sender_key: senderKey,
       sender_side: side,
-      body: typeof raw["text"] === "string" ? raw["text"] : "",
+      body: typeof raw["text"] === "string" ? String(sanitizeArchiveValue(raw["text"])) : "",
       kind,
       original_order: index,
       reply_uid: raw["reply_to_message_id"] ? `${sourceId}:${String(raw["reply_to_message_id"])}` : null,
@@ -942,6 +960,13 @@ export async function importAssassinsArchiveFile(
     };
   });
 
+  const uidSet = new Set(messages.map((m) => m.uid));
+  for (const message of messages) {
+    if (message.reply_uid && !uidSet.has(message.reply_uid)) {
+      message.metadata = { ...message.metadata, reply_target_outside_export: true };
+      message.reply_uid = null;
+    }
+  }
   const times = messages.map((m) => Date.parse(m.occurred_at));
   const fromAt = new Date(Math.min(...times)).toISOString();
   const toAt = new Date(Math.max(...times)).toISOString();
@@ -1020,22 +1045,44 @@ export async function toggleBookmark(uid: string) {
   await set("mae:bookmarks", b);
   setState({ bookmarks: b });
 }
+async function persistSharedState(settings: Settings, events: MemoryEvent[]) {
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!auth.user) return;
+  const { error } = await supabase.from("mae_shared_state").upsert({
+    id: "main",
+    settings,
+    events,
+    updated_by: auth.user.id,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "id" });
+  if (error) throw error;
+}
+function queueSharedStateSync(settings: Settings, events: MemoryEvent[]) {
+  void persistSharedState(settings, events).catch((error) => {
+    console.warn("M AND E shared memory sync failed:", error);
+  });
+}
+
 export async function saveEvent(ev: MemoryEvent) {
   const events = state.events
     .filter((e) => e.id !== ev.id && !(ev.kind !== "custom" && e.kind === ev.kind))
     .concat(ev);
   await set("mae:events", events);
   setState({ events });
+  queueSharedStateSync(state.settings, events);
 }
 export async function removeEvent(id: string) {
   const events = state.events.filter((e) => e.id !== id);
   await set("mae:events", events);
   setState({ events });
+  queueSharedStateSync(state.settings, events);
 }
 export async function updateSettings(p: Partial<Settings>) {
   const settings = { ...state.settings, ...p };
   await set("mae:settings", settings);
   setState({ settings });
+  queueSharedStateSync(settings, state.events);
 }
 // ---- bundle: one file with everything, to hand over to the other person ----
 export const BUNDLE_FORMAT = "mae-bundle";

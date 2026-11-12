@@ -41,6 +41,7 @@ function Memories() {
   const cands = useMemo(() => (status === "ready" ? birthdayCandidates(messages, (k) => sides[k]?.side, days) : []), [status, messages, sides, days]);
   const firstSrc = sources.find((x) => x.id === settings.firstSourceId) ?? null;
   const firstMsgs = useMemo(() => (firstSrc ? sliceRange(messages, settings.firstFrom, settings.firstTo).filter((m) => m.s === firstSrc.id) : []), [messages, settings.firstFrom, settings.firstTo, firstSrc]);
+  const firstCount = firstSrc && settings.firstFrom <= firstSrc.from && settings.firstTo >= firstSrc.to ? firstSrc.count : firstMsgs.length;
   const [custom, setCustom] = useState({ title: "", from: settings.startMs, to: settings.startMs + 3 * 3600000 });
 
   return (
@@ -55,7 +56,7 @@ function Memories() {
 
       <section className="glass mt-4 rounded-3xl p-4">
         <h2 className="font-bold">بازه‌ی «روز اول ما»</h2>
-        <p className="mt-1 text-xs text-muted-foreground">یک گفتگوی پیوسته در گروه که از نیمه‌شب می‌گذرد. بازه و منبع هر دو قابل ویرایش‌اند. فقط پیام‌های واقعی داخل این بازه پخش می‌شوند.</p>
+        <p className="mt-1 text-xs text-muted-foreground">بازهٔ ثبت‌شده از آرشیو گروه Assassin’s Creed. منبع و بازه قابل ویرایش‌اند و فقط پیام‌های واقعی همین بازه پخش می‌شوند.</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <JalaliDateTimeInput label="از" value={settings.firstFrom} onChange={(ms) => updateSettings({ firstFrom: ms })} />
           <JalaliDateTimeInput label="تا" value={settings.firstTo} onChange={(ms) => updateSettings({ firstTo: ms })} />
@@ -75,7 +76,7 @@ function Memories() {
             <p className="text-muted-foreground">تا منبع انتخاب نشود، «روز اول ما» پیامی پخش نمی‌کند.</p>
           ) : (
             <>
-              <p>{fa(firstMsgs.length)} پیامِ واقعی از «{firstSrc.label}» در این بازه{firstMsgs[0] ? ` · نخستین: ${fmtDateTime(firstMsgs[0].t)}` : ""}</p>
+              <p>{fa(firstCount)} پیامِ واقعی از «{firstSrc.label}» در این بازه{firstMsgs[0] ? ` · نخستین: ${fmtDateTime(firstMsgs[0].t)}` : ""}</p>
               <p className="text-muted-foreground">پوشش این آرشیو: {fmtDateTime(firstSrc.from)} تا {fmtDateTime(firstSrc.to)}</p>
               {firstSrc.from > settings.firstFrom && <p className="text-gold">این آرشیو از {fmtDateTime(firstSrc.from)} شروع می‌شود؛ قبل از آن پیامی در آن نیست و چیزی ساخته نمی‌شود.</p>}
             </>

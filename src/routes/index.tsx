@@ -2,8 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Cake, Dices, Gift, Heart, Sparkles, History, PartyPopper, Plus } from "lucide-react";
 import { useStore, type EventKind } from "@/lib/mae/store";
 import { LiveCounter } from "@/components/mae/Counter";
-import { dayKey, dayStartMs, fa, fmtDate, fmtDateTime, fmtTime } from "@/lib/mae/time";
-import { pickRandomSession, sliceRange } from "@/lib/mae/analysis";
+import { fa, fmtDate, fmtDateTime, fmtTime } from "@/lib/mae/time";
+import { pickRandomSession } from "@/lib/mae/analysis";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -31,7 +31,6 @@ const BIRTHDAY_SLOTS: { kind: EventKind; title: string; icon: typeof Cake }[] = 
 
 function Home() {
   const status = useStore((s) => s.status);
-  const messages = useStore((s) => s.messages);
   const sessions = useStore((s) => s.sessions);
   const settings = useStore((s) => s.settings);
   const events = useStore((s) => s.events);
@@ -39,14 +38,8 @@ function Home() {
 
   const sources = useStore((s) => s.sources);
   const firstSrc = sources.find((x) => x.id === settings.firstSourceId) ?? null;
-  const midnight = dayStartMs(dayKey(settings.firstTo));
-  const firstMsgs = firstSrc
-    ? sliceRange(messages, settings.firstFrom, settings.firstTo).filter((m) => m.s === firstSrc.id)
-    : [];
-  const pre = firstMsgs.filter((m) => m.t < midnight).length;
-  const post = firstMsgs.length - pre;
-  const began = sessions.length
-    ? { from: sessions[0]!.from, to: sessions[Math.min(2, sessions.length - 1)]!.to }
+  const began = settings.beganFrom && settings.beganTo && settings.beganSourceId
+    ? { from: settings.beganFrom, to: settings.beganTo, src: settings.beganSourceId }
     : null;
 
   const randomMemory = () => {
@@ -100,8 +93,7 @@ function Home() {
             روز اول ما
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            شب {fmtDate(midnight - 1)} تا بامداد {fmtDate(midnight)} — یک گفتگوی پیوسته‌ی گروهی که
-            از نیمه‌شب گذشت.
+            {fmtDate(settings.firstFrom)} · {fmtTime(settings.firstFrom)} تا {fmtTime(settings.firstTo)} — آرشیو گروه Assassin’s Creed.
           </p>
           {!firstSrc ? (
             <div className="mt-4 rounded-2xl border border-gold/40 bg-gold/10 p-3 text-xs">
@@ -120,18 +112,23 @@ function Home() {
             <>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-2xl bg-mahan/10 p-3">
-                  <div className="text-muted-foreground">پیش از ۰۰:۰۰</div>
-                  <div className="mt-1 font-bold">
-                    {pre ? `${fa(pre)} پیام` : "در این آرشیو نیست"}
-                  </div>
+                  <div className="text-muted-foreground">پیام‌های ماهان</div>
+                  <div className="mt-1 font-bold">{fa(firstSrc.senders.find((x) => x.guess === "M")?.count ?? 0)}</div>
                 </div>
                 <div className="rounded-2xl bg-elisa/10 p-3">
-                  <div className="text-muted-foreground">پس از ۰۰:۰۰</div>
-                  <div className="mt-1 font-bold">
-                    {post ? `${fa(post)} پیام` : "در این آرشیو نیست"}
-                  </div>
+                  <div className="text-muted-foreground">پیام‌های الیسا</div>
+                  <div className="mt-1 font-bold">{fa(firstSrc.senders.find((x) => x.guess === "E")?.count ?? 0)}</div>
+                </div>
+                <div className="rounded-2xl bg-background/55 p-3">
+                  <div className="text-muted-foreground">ربات‌ها</div>
+                  <div className="mt-1 font-bold">{fa(firstSrc.senders.filter((x) => x.name.includes("ربات")).reduce((n, x) => n + x.count, 0))}</div>
+                </div>
+                <div className="rounded-2xl bg-background/55 p-3">
+                  <div className="text-muted-foreground">رویدادهای گروه</div>
+                  <div className="mt-1 font-bold">{fa(firstSrc.senders.filter((x) => x.name.includes("سیستم")).reduce((n, x) => n + x.count, 0))}</div>
                 </div>
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">مجموع: {fa(firstSrc.count)} پیام · همهٔ پیام‌ها از آرشیو کامل گروه</p>
               <p className="mt-3 text-xs text-muted-foreground">
                 منبع: {firstSrc.label} · پوشش آرشیو: {fmtDateTime(firstSrc.from)} تا{" "}
                 {fmtDateTime(firstSrc.to)}
@@ -163,12 +160,12 @@ function Home() {
       <div className="grid gap-3 sm:grid-cols-2">
         <MemoryCard
           title="چطور شروع شد"
-          sub={began ? `${fmtDate(began.from)} · نخستین گفتگوهای آرشیو` : "بعد از وارد کردن آرشیو"}
+          sub={began ? `${fmtDateTime(began.from)} تا ${fmtDateTime(began.to)} · ${fa(settings.beganCount ?? 18)} پیام در سه گفتگوی نخست خصوصی` : "بعد از وارد کردن آرشیو"}
           icon={History}
           badge="تأییدشده از آرشیو"
           to={
             began
-              ? { from: began.from, to: began.to, title: "چطور شروع شد", kind: "began" }
+              ? { from: began.from, to: began.to, title: "چطور شروع شد", kind: "began", src: began.src }
               : undefined
           }
         />
@@ -237,7 +234,7 @@ function Home() {
       </div>
 
       <p className="mt-6 pb-4 text-center text-[11px] text-muted-foreground">
-        آرشیو خاطرات فقط روی همین دستگاه می‌ماند و جایی ارسال نمی‌شود.
+        آرشیو اصلی و خاطره‌های مشترک در Supabase همگام می‌شوند؛ نسخهٔ محلی هم برای دسترسی سریع و آفلاین نگه داشته می‌شود.
       </p>
     </main>
   );
@@ -255,7 +252,7 @@ function MemoryCard({
   sub: string;
   icon: typeof Cake;
   badge: string;
-  to?: { from: number; to: number; title: string; kind: string } | undefined;
+  to?: { from: number; to: number; title: string; kind: string; src?: string } | undefined;
   setup?: boolean | undefined;
 }) {
   const inner = (

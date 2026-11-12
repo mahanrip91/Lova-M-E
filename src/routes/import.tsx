@@ -20,6 +20,7 @@ function ArchivePage() {
   const sources = useStore((s) => s.sources);
   const sides = useStore((s) => s.sides);
   const messages = useStore((s) => s.messages);
+  const cloudArchive = sources.find((source) => source.id === "rubika_assassins_20260415_0329_0507");
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState("");
@@ -83,6 +84,12 @@ function ArchivePage() {
                 <div className="text-xs text-muted-foreground">رویداد سیستمی</div>
               </div>
             </div>
+            {cloudArchive && (
+              <p className="mt-3 flex items-center gap-2 text-sm text-primary">
+                <CheckCircle2 className="size-4 shrink-0" />
+                این آرشیو در Supabase ثبت شده و با دستگاه‌های واردشده همگام می‌شود.
+              </p>
+            )}
             <p className="mt-3 text-xs leading-6 text-muted-foreground">
               همهٔ ۲۹۰ پیام با ترتیب، زمان دقیق، پاسخ‌ها و اطلاعات پایهٔ پیوست‌ها نگه داشته می‌شوند.
               این منبع فقط یک‌بار ثبت می‌شود و اجرای دوباره، پیام تکراری نمی‌سازد.
@@ -101,7 +108,7 @@ function ArchivePage() {
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-love px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg transition-transform hover:scale-[1.01] disabled:opacity-60"
             >
               {uploading ? <LoaderCircle className="size-4 animate-spin" /> : <UploadCloud className="size-4" />}
-              {uploading ? "در حال افزودن آرشیو…" : "انتخاب فایل و افزودن به M AND E"}
+              {uploading ? "در حال افزودن آرشیو…" : cloudArchive ? "جایگزینی امن آرشیو از فایل" : "انتخاب فایل و افزودن به M AND E"}
             </button>
             {progress && <p className="mt-3 text-xs text-muted-foreground">{progress}</p>}
             {result && <p className="mt-3 flex items-center gap-2 text-sm text-primary"><CheckCircle2 className="size-4 shrink-0" />{result}</p>}
