@@ -2,6 +2,7 @@ import { createFileRoute, Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { fetchUpdateManifest, formatBytes, isBelowMinimum, isNewerVersion, type UpdateManifest } from "@/lib/update-manifest";
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { Ota } from "@/lib/ota-native";
 import { PageHeader } from "@/components/mae/Nav";
 import { Button } from "@/components/ui/button";
 import { Bell, BellOff } from "lucide-react";
@@ -20,6 +21,17 @@ type NativeTools = {
 };
 
 const Native = registerPlugin<NativeTools>("NativeTools");
+
+type OtaChannel = {
+  schema: number;
+  enabled: boolean;
+  bundleId: string;
+  manifestUrl: string;
+  signatureUrl: string;
+};
+
+const OTA_CHANNEL_URL =
+  "https://raw.githubusercontent.com/mahanrip91/Lova-M-E/main/public/ota/channel.json";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "M AND E · تنظیمات" }] }),
@@ -40,6 +52,20 @@ function SettingsPage() {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [otaStatus, setOtaStatus] = useState<{
+    activeBundle: string;
+    previousBundle: string;
+    storageReady: boolean;
+  } | null>(null);
+  const [otaChannel, setOtaChannel] = useState<OtaChannel | null>(null);
+  const [otaStaged, setOtaStaged] = useState<{
+    bundleId: string;
+    totalSize: number;
+    downloadedBytes: number;
+    reusedBytes: number;
+    fileCount: number;
+    releaseNotes: string;
+  } | null>(null);
 
   const native = Capacitor.isNativePlatform();
 
@@ -59,7 +85,10 @@ function SettingsPage() {
     }
   }
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    void refresh();
+    if (native) void refreshOtaStatus();
+  }, []);
 
   useEffect(() => {
     try {
@@ -190,6 +219,131 @@ function SettingsPage() {
     }
   }
 
+  async function refreshOtaStatus() {
+    if (!native) return;
+    try {
+      setOtaStatus(await Ota.getOtaStatus());
+    } catch {
+      setMessage("دریافت وضعیت به‌روزرسانی OTA ناموفق بود.");
+    }
+  }
+
+  async function checkOta() {
+    if (!native) return;
+    setBusy(true);
+    setMessage("");
+    setOtaStaged(null);
+    try {
+      const response = await fetch(OTA_CHANNEL_URL, {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error("دریافت کانال OTA ناموفق بود.");
+      const channel = await response.json() as OtaChannel;
+
+      if (
+        channel.schema !== 1 ||
+        typeof channel.enabled !== "boolean" ||
+        typeof channel.bundleId !== "string" ||
+        typeof channel.manifestUrl !== "string" ||
+        typeof channel.signatureUrl !== "string"
+      ) {
+        throw new Error("ساختار کانال OTA معتبر نیست.");
+      }
+
+      setOtaChannel(channel);
+      await refreshOtaStatus();
+
+      if (!channel.enabled) {
+        setMessage("انتشار OTA هنوز فعال نشده است.");
+      } else if (
+        !channel.bundleId ||
+        !channel.manifestUrl.startsWith("https://") ||
+        !channel.signatureUrl.startsWith("https://")
+      ) {
+        throw new Error("اطلاعات انتشار OTA ناقص یا نامعتبر است.");
+      } else if (channel.bundleId === otaStatus?.activeBundle) {
+        setMessage("بستهٔ OTA فعلی فعال است.");
+      } else {
+        setMessage(`نسخهٔ OTA جدید پیدا شد: ${channel.bundleId}`);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "بررسی OTA ناموفق بود.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadOta() {
+    if (!native || !otaChannel?.enabled) return;
+    setBusy(true);
+    setMessage("در حال دانلود و بررسی امن فایل‌های OTA…");
+    setOtaStaged(null);
+    try {
+      const result = await Ota.downloadAndVerifyBundle({
+        manifestUrl: otaChannel.manifestUrl,
+        signatureUrl: otaChannel.signatureUrl,
+      });
+
+      if (result.status !== "verified") {
+        throw new Error("تأیید بستهٔ OTA انجام نشد.");
+      }
+      if (result.bundleId !== otaChannel.bundleId) {
+        throw new Error("شناسهٔ بسته با کانال انتشار مطابقت ندارد.");
+      }
+
+      setOtaStaged(result);
+      setMessage(
+        `بستهٔ ${result.bundleId} با موفقیت بررسی شد؛ ${formatBytes(result.downloadedBytes)} دانلود و ${formatBytes(result.reusedBytes)} از فایل‌های قبلی استفاده شد.`
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "دانلود OTA ناموفق بود.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function activateOta() {
+    if (!native || !otaStaged) return;
+    if (!window.confirm("نسخهٔ بررسی‌شده فعال شود؟ برنامه دوباره بارگذاری می‌شود.")) return;
+
+    setBusy(true);
+    setMessage("در حال فعال‌سازی نسخهٔ جدید…");
+    try {
+      await Ota.activateBundle({ bundleId: otaStaged.bundleId });
+      window.location.reload();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "فعال‌سازی OTA ناموفق بود.");
+      setBusy(false);
+    }
+  }
+
+  async function rollbackOta() {
+    if (!native) return;
+    if (!window.confirm("به نسخهٔ قبلی OTA برگردیم؟")) return;
+    setBusy(true);
+    try {
+      await Ota.rollbackOta();
+      window.location.reload();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "بازگشت به نسخهٔ قبلی ناموفق بود.");
+      setBusy(false);
+    }
+  }
+
+  async function resetOta() {
+    if (!native) return;
+    if (!window.confirm("نسخهٔ OTA حذف از حالت فعال شود و فایل داخلی APK اجرا شود؟")) return;
+    setBusy(true);
+    try {
+      await Ota.resetToBuiltIn();
+      window.location.reload();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "بازنشانی OTA ناموفق بود.");
+      setBusy(false);
+    }
+  }
+
   const hasUpdate = manifest != null && isNewerVersion(manifest, versionCode);
   const size = manifest ? formatBytes(manifest.apkSizeBytes) : null;
 
@@ -304,6 +458,102 @@ function SettingsPage() {
           </Button>
         )}
         {native && notif?.enabled && <p className="mt-2 text-xs text-muted-foreground">اعلان نسخهٔ جدید روشن است.</p>}
+      </section>
+
+      <section className="glass mb-4 rounded-3xl p-4">
+        <div className="mb-3">
+          <h2 className="font-bold">به‌روزرسانی سریع (OTA)</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            دریافت تغییرات ظاهری و امکانات وب، بدون نصب APK. فایل‌ها پیش از فعال‌سازی بررسی می‌شوند.
+          </p>
+        </div>
+
+        <dl className="mb-3 grid gap-2 text-xs text-muted-foreground">
+          <div className="flex justify-between gap-2">
+            <dt>نسخهٔ فعال</dt>
+            <dd dir="ltr">{otaStatus?.activeBundle || "نسخهٔ داخلی APK"}</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt>نسخهٔ قبلی</dt>
+            <dd dir="ltr">{otaStatus?.previousBundle || "ندارد"}</dd>
+          </div>
+          {otaChannel?.enabled && (
+            <div className="flex justify-between gap-2">
+              <dt>آخرین انتشار</dt>
+              <dd dir="ltr">{otaChannel.bundleId}</dd>
+            </div>
+          )}
+        </dl>
+
+        {otaStaged && (
+          <div className="mb-3 rounded-2xl bg-background/30 p-3 text-xs">
+            <p className="font-bold">بسته آمادهٔ فعال‌سازی است</p>
+            <p className="mt-1 text-muted-foreground">
+              حجم کل: {formatBytes(otaStaged.totalSize)} · دانلود جدید: {formatBytes(otaStaged.downloadedBytes)} · فایل‌ها: {otaStaged.fileCount}
+            </p>
+            {otaStaged.releaseNotes && (
+              <p className="mt-2 whitespace-pre-wrap text-muted-foreground">{otaStaged.releaseNotes}</p>
+            )}
+          </div>
+        )}
+
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={!native || busy}
+          onClick={() => void checkOta()}
+        >
+          <RefreshCw className="mr-2 size-4" /> بررسی انتشار OTA
+        </Button>
+
+        {native && otaChannel?.enabled &&
+          otaChannel.bundleId !== otaStatus?.activeBundle && (
+          <Button
+            className="mt-2 w-full"
+            disabled={busy}
+            onClick={() => void downloadOta()}
+          >
+            <Download className="mr-2 size-4" /> دانلود و بررسی فایل‌های تغییرکرده
+          </Button>
+        )}
+
+        {native && otaStaged && (
+          <Button
+            className="mt-2 w-full"
+            disabled={busy}
+            onClick={() => void activateOta()}
+          >
+            فعال‌سازی نسخهٔ بررسی‌شده
+          </Button>
+        )}
+
+        {native && otaStatus?.previousBundle && (
+          <Button
+            variant="outline"
+            className="mt-2 w-full"
+            disabled={busy}
+            onClick={() => void rollbackOta()}
+          >
+            بازگشت به نسخهٔ قبلی
+          </Button>
+        )}
+
+        {native && otaStatus?.activeBundle && (
+          <Button
+            variant="outline"
+            className="mt-2 w-full"
+            disabled={busy}
+            onClick={() => void resetOta()}
+          >
+            بازگشت به نسخهٔ داخلی APK
+          </Button>
+        )}
+
+        {!native && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            به‌روزرسانی OTA فقط در نسخهٔ اندروید فعال است.
+          </p>
+        )}
       </section>
 
       {message && <p role="status" className="mt-4 text-center text-sm text-muted-foreground">{message}</p>}

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Capacitor } from "@capacitor/core";
 import { getNativeGate } from "@/lib/native-gate";
+import { Ota } from "@/lib/ota-native";
 import {
   Outlet,
   Link,
@@ -29,6 +30,7 @@ import { isUpdatesDeepLink } from "@/lib/update-manifest";
 
 // Client-side cache of the server gate result so navigation stays instant.
 let gateCache: { unlocked: boolean; viewer: Viewer | null } | null = null;
+
 export function resetGateCache() {
   gateCache = null;
 }
@@ -159,6 +161,18 @@ function RootComponent() {
     setViewer(gate.viewer);
     setNativeGateReady(true);
   }, [path, router]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || !nativeGateReady) return;
+
+    const timer = window.setTimeout(() => {
+      void Ota.confirmBundleReady().catch((error: unknown) => {
+        console.warn("M AND E OTA confirmation failed:", error);
+      });
+    }, 10000);
+
+    return () => window.clearTimeout(timer);
+  }, [nativeGateReady]);
 
   const viewer = useViewer();
   const theme = useTheme();

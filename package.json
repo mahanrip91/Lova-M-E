@@ -15,7 +15,9 @@
     "build:app": "node scripts/generate-native-gate.mjs && vite build --config vite.app.config.ts && node scripts/prepare-capacitor.mjs",
     "cap:sync": "npm run build:app && npx cap sync android",
     "cap:open": "npx cap open android",
-    "cap:run": "npm run cap:sync && npx cap run android"
+    "cap:run": "npm run cap:sync && npx cap run android",
+    "ota:keygen": "node scripts/ota-keygen.mjs",
+    "ota:build": "node scripts/build-ota.mjs"
   },
   "overrides": {
     "rolldown": "1.2.15"
