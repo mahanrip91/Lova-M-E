@@ -498,9 +498,9 @@ function Chat() {
               {peerOnline
                 ? "طرف مقابل آنلاین"
                 : peerLastSeen
-                  ? `آخرین بازدید ${new Date(peerLastSeen).toLocaleString("fa-IR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
+                  ? `آخرین بازدید ${new Date(peerLastSeen).toLocaleDateString("fa-IR", {
+                      month: "numeric",
+                      day: "numeric",
                     })}`
                   : "وضعیت نامشخص"}
               {" · "}
