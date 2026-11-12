@@ -1,4 +1,6 @@
-import { NATIVE_PASSWORD_HASH } from "./native-gate.generated";
+// Generated only for native builds (scripts/generate-native-gate.mjs); optional elsewhere.
+const generated = import.meta.glob<{ NATIVE_PASSWORD_HASH: string }>("./native-gate.generated.ts", { eager: true });
+const NATIVE_PASSWORD_HASH: string | null = Object.values(generated)[0]?.NATIVE_PASSWORD_HASH ?? null;
 import type { Viewer } from "./gate.functions";
 
 const KEY = "mae:native-gate";
@@ -27,7 +29,7 @@ export async function unlockNative(password: string, viewer: Viewer) {
   const hash = Array.from(new Uint8Array(digest))
     .map(x => x.toString(16).padStart(2, "0")).join("");
 
-  if (hash !== NATIVE_PASSWORD_HASH) return false;
+  if (!NATIVE_PASSWORD_HASH || hash !== NATIVE_PASSWORD_HASH) return false;
 
   localStorage.setItem(KEY, JSON.stringify({ unlocked: true, viewer }));
   return true;
