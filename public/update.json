@@ -1,23 +1,23 @@
 {
-  "versionCode": 6,
-  "versionName": "1.1.4",
-  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.4-6/M-AND-E.apk",
-  "apkSizeBytes": 8641012,
-  "apkSha256": "7f4e115b0a3fb375c71b613ef368f3058c41adcc6e6f16b78c6761ac60050bd2",
+  "versionCode": 7,
+  "versionName": "1.1.5",
+  "apkUrl": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.5-7/M-AND-E.apk",
+  "apkSizeBytes": 8625360,
+  "apkSha256": "f71f557536ac1889b9d03a714efe2fca1de421ff1c365144ea4e9dd3d56fb62d",
   "releaseNotes": [
-    "یکپارچه‌سازی به‌روزرسانی امن APK؛ حذف کامل موتور بستهٔ وب، پاک‌سازی مسیر قدیمی و اصلاح پچ کم‌حجم."
+    "نوار پیشرفت زنده، نمایش حجم دقیق دانلود و دریافت مستقیم داخل برنامه؛ بهبود دانلود پچ کم‌حجم."
   ],
   "updateType": "apk",
   "delta": {
     "algorithm": "bsdiff40",
-    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.4-6/M-AND-E-v1.1.4-6.bsdiff",
-    "fromVersionCode": 5,
-    "fromApkSha256": "ec7ff0c5929f82d5bcd1d22a81f93cc79014654d1fdbdf482199a3f0f35181a0",
-    "patchSizeBytes": 368484,
-    "patchSha256": "7e9e516a8febfd67c046d54c921721af795252a78badba712f43499f1ac196c0",
-    "targetApkSizeBytes": 8641012,
-    "targetApkSha256": "7f4e115b0a3fb375c71b613ef368f3058c41adcc6e6f16b78c6761ac60050bd2"
+    "url": "https://github.com/mahanrip91/Lova-M-E/releases/download/v1.1.5-7/M-AND-E-v1.1.5-7.bsdiff",
+    "fromVersionCode": 6,
+    "fromApkSha256": "7f4e115b0a3fb375c71b613ef368f3058c41adcc6e6f16b78c6761ac60050bd2",
+    "patchSizeBytes": 371140,
+    "patchSha256": "f8d12810b5ea4b5a7359671f6048969883256e1b14aeb75ff7558929268b386f",
+    "targetApkSizeBytes": 8625360,
+    "targetApkSha256": "f71f557536ac1889b9d03a714efe2fca1de421ff1c365144ea4e9dd3d56fb62d"
   },
   "minimumSupportedVersionCode": null,
-  "publishedAt": "2026-11-12T14:45:13.045Z"
+  "publishedAt": "2026-11-12T15:45:56.878Z"
 }
