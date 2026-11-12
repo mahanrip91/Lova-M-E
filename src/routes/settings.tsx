@@ -2,7 +2,6 @@ import { createFileRoute, Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { fetchUpdateManifest, formatBytes, isBelowMinimum, isNewerVersion, type UpdateManifest } from "@/lib/update-manifest";
 import { Capacitor, registerPlugin } from "@capacitor/core";
-import { Ota } from "@/lib/ota-native";
 import { PageHeader } from "@/components/mae/Nav";
 import { Button } from "@/components/ui/button";
 import { Bell, BellOff } from "lucide-react";
@@ -21,17 +20,6 @@ type NativeTools = {
 };
 
 const Native = registerPlugin<NativeTools>("NativeTools");
-
-type OtaChannel = {
-  schema: number;
-  enabled: boolean;
-  bundleId: string;
-  manifestUrl: string;
-  signatureUrl: string;
-};
-
-const OTA_CHANNEL_URL =
-  "https://raw.githubusercontent.com/mahanrip91/Lova-M-E/main/public/ota/channel.json";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "M AND E · تنظیمات" }] }),
@@ -52,12 +40,6 @@ function SettingsPage() {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
-  const [otaStatus, setOtaStatus] = useState<{
-    activeBundle: string;
-    previousBundle: string;
-    storageReady: boolean;
-  } | null>(null);
-  const [otaChannel, setOtaChannel] = useState<OtaChannel | null>(null);
 
 
   const native = Capacitor.isNativePlatform();
@@ -80,7 +62,6 @@ function SettingsPage() {
 
   useEffect(() => {
     void refresh();
-    if (native) void refreshOtaStatus();
   }, []);
 
   useEffect(() => {
@@ -163,34 +144,14 @@ function SettingsPage() {
     setBusy(true);
     setMessage("");
     try {
-      const [res, otaResponse, currentOta] = await Promise.all([
-        fetchUpdateManifest(),
-        fetch(OTA_CHANNEL_URL, { cache: "no-store", headers: { Accept: "application/json" } }).catch(() => null),
-        native ? Ota.getOtaStatus().catch(() => null) : Promise.resolve(null),
-      ]);
+      const res = await fetchUpdateManifest();
       if (res.ok) setManifest(res.manifest);
       else setManifest(null);
-      if (currentOta) setOtaStatus(currentOta);
-      let channel: OtaChannel | null = null;
-      if (otaResponse?.ok) {
-        const candidate = await otaResponse.json() as Partial<OtaChannel>;
-        if (candidate.schema === 1 && typeof candidate.enabled === "boolean" &&
-            typeof candidate.bundleId === "string" && typeof candidate.manifestUrl === "string" &&
-            typeof candidate.signatureUrl === "string") {
-          channel = candidate as OtaChannel;
-          setOtaChannel(channel);
-        }
-      }
-      const apkAvailable = res.ok && isNewerVersion(res.manifest, versionCode);
-      const webAvailable = native && !!channel?.enabled && !!channel.bundleId &&
-        channel.bundleId !== currentOta?.activeBundle;
-      const result = apkAvailable
+      const result = res.ok && isNewerVersion(res.manifest, versionCode)
         ? "به‌روزرسانی برنامه " + res.manifest.versionName + " آماده است."
-        : webAvailable
-          ? "تغییرات جدید برنامه آمادهٔ دریافت است."
-          : res.ok
-            ? "برنامه به‌روز است."
-            : res.error;
+        : res.ok
+          ? "برنامه به‌روز است."
+          : res.error;
       recordCheck(result);
       setMessage(result);
     } catch {
@@ -217,52 +178,24 @@ function SettingsPage() {
 
   async function installUpdate() {
     const apkAvailable = manifest != null && isNewerVersion(manifest, versionCode);
-    const webAvailable = !!otaChannel?.enabled && !!otaChannel.bundleId &&
-      otaChannel.bundleId !== otaStatus?.activeBundle;
-    if (!apkAvailable && !webAvailable) return;
+    if (!apkAvailable) return;
     setBusy(true);
     try {
-      if (apkAvailable) {
-        setMessage("در حال دریافت تغییرات؛ اگر پچ مناسب نباشد، APK کامل خودکار دریافت می‌شود…");
-        const r = await Native.downloadSmartAndInstall();
-        setMessage(r.method === "delta"
-          ? "پچ کم‌حجم اعمال و APK جدید بازسازی و بررسی شد؛ نصب را در پنجرهٔ اندروید تأیید کن."
-          : "APK کامل دریافت و بررسی شد؛ نصب را در پنجرهٔ اندروید تأیید کن.");
-        setBusy(false);
-        return;
-      }
-      if (!native || !otaChannel) return;
-      setMessage("در حال دریافت و بررسی فایل‌های تغییرکرده…");
-      const result = await Ota.downloadAndVerifyBundle({
-        manifestUrl: otaChannel.manifestUrl,
-        signatureUrl: otaChannel.signatureUrl,
-      });
-      if (result.status !== "verified" || result.bundleId !== otaChannel.bundleId) {
-        throw new Error("بررسی بستهٔ به‌روزرسانی ناموفق بود.");
-      }
-      await Ota.activateBundle({ bundleId: result.bundleId });
-      window.location.reload();
+      setMessage("در حال دریافت تغییرات؛ اگر پچ مناسب نباشد، APK کامل خودکار دریافت می‌شود…");
+      const r = await Native.downloadSmartAndInstall();
+      setMessage(r.method === "delta"
+        ? "پچ کم‌حجم اعمال و APK جدید بازسازی و بررسی شد؛ نصب را در پنجرهٔ اندروید تأیید کن."
+        : "APK کامل دریافت و بررسی شد؛ نصب را در پنجرهٔ اندروید تأیید کن.");
     } catch (e) {
       setMessage(e instanceof Error && e.message ? e.message : "به‌روزرسانی ناموفق بود.");
+    } finally {
       setBusy(false);
     }
   }
 
-  async function refreshOtaStatus() {
-    if (!native) return;
-    try {
-      setOtaStatus(await Ota.getOtaStatus());
-    } catch {
-      setMessage("دریافت وضعیت به‌روزرسانی OTA ناموفق بود.");
-    }
-  }
-
-
 
   const apkAvailable = manifest != null && isNewerVersion(manifest, versionCode);
-  const webAvailable = !!otaChannel?.enabled && !!otaChannel.bundleId &&
-    otaChannel.bundleId !== otaStatus?.activeBundle;
-  const hasUpdate = apkAvailable || webAvailable;
+  const hasUpdate = apkAvailable;
   const size = manifest
     ? formatBytes(manifest.delta?.fromVersionCode === versionCode ? manifest.delta.patchSizeBytes : manifest.apkSizeBytes)
     : null;
@@ -368,9 +301,6 @@ function SettingsPage() {
           {hasUpdate ? <Download className="mr-2 size-4" /> : <RefreshCw className="mr-2 size-4" />}
           {hasUpdate ? "دریافت و اعمال به‌روزرسانی" : "بررسی به‌روزرسانی"}
         </Button>
-        {otaStatus?.activeBundle && (
-          <p className="mt-2 text-xs text-muted-foreground">نسخهٔ وب فعال: <span dir="ltr">{otaStatus.activeBundle}</span></p>
-        )}
         {native && notif && !notif.enabled && (
           <Button variant="outline" className="mt-2 w-full" disabled={busy} onClick={() => void requestNotificationPermission()}>
             <Bell className="mr-2 size-4" /> اجازهٔ اعلان نسخهٔ جدید
